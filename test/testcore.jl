@@ -45,6 +45,21 @@ end
     @test any(i.category == :type_instability for i in bad_report.issues)
 end
 
+@testset "Compilation Cache" begin
+    # Test that caching works for repeated compilations
+    cache_test_func(x::Int) = x * 2
+
+    clear_cache!()
+
+    filepath1 = compile_shlib(cache_test_func, (Int,), workdir, "cache_test1")
+    @test isfile(filepath1)
+
+    filepath2 = compile_shlib(cache_test_func, (Int,), workdir, "cache_test2")
+    @test isfile(filepath2)
+
+    clear_cache!()
+end
+
 @testset "Standalone Dylibs" begin
     # Test function
     # (already defined)

@@ -19,6 +19,7 @@ export static_code_llvm, static_code_typed, static_llvm_module, static_code_nati
 export @device_override, @print_and_throw
 export StaticTarget
 export check_compilable, CompilabilityReport
+export clear_cache!
 
 include("interpreter.jl")
 include("target.jl")
@@ -27,6 +28,7 @@ include("quirks.jl")
 include("dllexport.jl")
 include("diagnostics.jl")
 include("checker.jl")
+include("cache.jl")
 
 fix_name(f::Function) = fix_name(string(nameof(f)))
 fix_name(s) = String(GPUCompiler.safe_name(s))
@@ -584,9 +586,23 @@ function generate_obj(funcs::Union{Array,Tuple}, path::String = tempname(), file
                         emit_llvm_only = false,
                         strip_llvm = false,
                         strip_asm = true,
+                        use_cache = true,
                         kwargs...)
     f, tt = funcs[1]
     mkpath(path)
+
+    # Try to use cached result for single-function compilation
+    if use_cache && length(funcs) == 1 && !emit_llvm_only
+        cached = get_cached(f, tt, target)
+        if !isnothing(cached)
+            obj_path = joinpath(path, "$filenamebase.o")
+            open(obj_path, "w") do io
+                write(io, cached.object_code)
+            end
+            return path, obj_path
+        end
+    end
+
     mod = static_llvm_module(funcs; demangle, kwargs...)
 
     if emit_llvm_only # (Required on Windows)
@@ -605,6 +621,12 @@ function generate_obj(funcs::Union{Array,Tuple}, path::String = tempname(), file
       open(obj_path, "w") do io
           write(io, obj)
       end
+
+      # Cache the result for single-function compilation
+      if use_cache && length(funcs) == 1
+          cache_result!(f, tt, target, string(mod), obj)
+      end
+
       return path, obj_path
     end
 end
