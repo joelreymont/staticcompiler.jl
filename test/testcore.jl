@@ -250,3 +250,94 @@ end
         @test isfile(filepath)
     end
 end
+
+@testset "Cache Management" begin
+    # Test cache statistics
+    StaticCompiler.clear_cache!()
+    stats = StaticCompiler.cache_stats()
+    @test stats.entries == 0
+    @test stats.size_mb == 0.0
+
+    # Compile something to populate cache
+    cache_test_v1(x::Int) = x + 1
+    compile_shlib(cache_test_v1, (Int,), workdir, "cache_v1")
+
+    stats = StaticCompiler.cache_stats()
+    @test stats.entries >= 1
+
+    # Test cache pruning
+    removed = StaticCompiler.prune_cache!(max_age_days=0, max_size_mb=0)
+    @test removed >= 0
+
+    StaticCompiler.clear_cache!()
+end
+
+@testset "Checker: Closures" begin
+    # Test that checker detects closures
+    outer(x) = y -> x + y
+    closure = outer(5)
+
+    report = StaticCompiler.check_compilable(closure, (Int,), verbose=false)
+    @test !report.compilable
+    @test any(i -> i.category == :closure, report.issues)
+end
+
+@testset "Checker: Dynamic Dispatch" begin
+    # Test that checker detects Any types
+    dynamic_func(x::Any) = x + 1
+
+    report = StaticCompiler.check_compilable(dynamic_func, (Any,), verbose=false)
+    @test !report.compilable
+    @test any(i -> i.category == :dynamic_dispatch, report.issues)
+end
+
+@testset "Checker: Abstract Types" begin
+    # Test that checker warns about abstract argument types
+    abstract_func(x::Integer) = x + 1
+
+    report = StaticCompiler.check_compilable(abstract_func, (Integer,), verbose=false)
+    @test any(i -> i.category == :abstract_argument, report.issues)
+end
+
+@testset "Error Recovery" begin
+    # Test that compilation errors don't corrupt state
+    bad_type_func(x::Int) = x + "string"
+
+    try
+        compile_shlib(bad_type_func, (Int,), workdir, "bad_compile")
+    catch e
+        @test e isa StaticCompiler.CompilationError
+    end
+
+    # Should still work after error
+    good_func_after_error(x::Int) = x + 1
+    filepath = compile_shlib(good_func_after_error, (Int,), workdir, "good_after_error")
+    @test isfile(filepath)
+end
+
+@testset "Edge Cases: Empty Function" begin
+    # Test compilation of function that does nothing
+    empty_func() = nothing
+
+    filepath = compile_executable(empty_func, (), workdir, "empty_test")
+    @test isfile(filepath)
+end
+
+@testset "Edge Cases: Multiple Return Paths" begin
+    # Test function with multiple return paths
+    multi_return(x::Int) = begin
+        if x > 0
+            return x
+        elseif x < 0
+            return -x
+        else
+            return 0
+        end
+    end
+
+    report = StaticCompiler.check_compilable(multi_return, (Int,), verbose=false)
+    @test report.compilable
+
+    filepath = compile_shlib(multi_return, (Int,), workdir, "multi_return")
+    @test isfile(filepath)
+end

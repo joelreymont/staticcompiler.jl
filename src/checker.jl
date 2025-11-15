@@ -28,9 +28,39 @@ report = check_compilable(f, (Int,))
 function check_compilable(f, types; verbose=true)
     issues = Issue[]
 
+    # Check for closures
+    if applicable(f, types...)
+        # Check if function is a closure (has captured variables)
+        # Closures have numeric names like #1, #2, etc. or contain captured variables
+        fname = string(typeof(f).name.name)
+        has_captured = fieldcount(typeof(f)) > 0 && !isempty(fieldnames(typeof(f)))
+        is_anonymous = startswith(fname, "#") || occursin("##", fname)
+
+        if is_anonymous && has_captured
+            # This is a closure with captured variables
+            push!(issues, Issue(:error, :closure,
+                "Closures with captured variables are not supported",
+                "Refactor to pass all needed values as function arguments"))
+        end
+    end
+
     # Check type stability
     try
         tt = Base.to_tuple_type(types)
+
+        # Check for abstract argument types
+        for (i, T) in enumerate(tt.parameters)
+            if !isconcretetype(T) && T !== Any
+                push!(issues, Issue(:warning, :abstract_argument,
+                    "Argument $i has abstract type $T",
+                    "Use concrete types for all arguments (e.g., Int64 instead of Integer)"))
+            elseif T === Any
+                push!(issues, Issue(:error, :dynamic_dispatch,
+                    "Argument $i has type Any which causes dynamic dispatch",
+                    "Specify concrete types to enable static compilation"))
+            end
+        end
+
         rt = last(only(static_code_typed(f, tt)))
         if !isconcretetype(rt)
             push!(issues, Issue(:error, :type_instability,
@@ -69,21 +99,43 @@ function check_llvm_module(mod)
         fname = LLVM.name(func)
 
         # Check for GC allocations
-        if occursin("jl_alloc", fname)
+        if occursin("jl_alloc", fname) || occursin("jl_gc", fname)
             push!(issues, Issue(:error, :gc_allocation,
                 "GC allocation detected: $fname",
                 "Use StaticTools.MallocArray instead of Array"))
         end
 
         # Check for error throwing
-        if occursin("jl_throw", fname)
+        if occursin("jl_throw", fname) || occursin("jl_error", fname)
             push!(issues, Issue(:error, :runtime_call,
                 "Error throwing detected: $fname",
                 "Add @device_override for error handling"))
         end
 
+        # Check for dynamic dispatch indicators
+        if occursin("jl_apply", fname) || occursin("jl_invoke", fname)
+            push!(issues, Issue(:error, :dynamic_dispatch,
+                "Dynamic dispatch detected: $fname",
+                "Ensure all types are concrete to avoid runtime dispatch"))
+        end
+
+        # Check for I/O operations
+        if occursin("jl_uv_", fname) || occursin("jl_iolock", fname)
+            push!(issues, Issue(:error, :io_operation,
+                "I/O operation detected: $fname",
+                "I/O is not supported in static compilation"))
+        end
+
+        # Check for global variable access
+        if occursin("jl_get_global", fname) || occursin("jl_set_global", fname)
+            push!(issues, Issue(:error, :global_access,
+                "Global variable access detected: $fname",
+                "Pass values as function arguments instead"))
+        end
+
         # Check for other runtime calls
-        if occursin("jl_", fname) && !occursin("julia_", fname)
+        if occursin("jl_", fname) && !occursin("julia_", fname) &&
+           !any(x -> occursin(x, fname), ["jl_alloc", "jl_throw", "jl_apply", "jl_invoke", "jl_uv_", "jl_get_global"])
             push!(issues, Issue(:warning, :runtime_call,
                 "Julia runtime call: $fname",
                 "May require @device_override or refactoring"))
