@@ -26,9 +26,13 @@ export estimate_binary_size, analyze_binary_size, SizeEstimate
 export analyze_dependencies, create_bundle, BundleConfig
 export OptimizationProfile, OptimizationLevel
 export PROFILE_SIZE, PROFILE_SPEED, PROFILE_AGGRESSIVE, PROFILE_DEBUG
+export PROFILE_SIZE_LTO, PROFILE_SPEED_LTO
 export optimize_binary, compile_executable_optimized, get_optimization_flags
+export compress_with_upx, test_upx_available
 export @benchmark_compilation, benchmark_compile
 export load_benchmarks, show_benchmark_history, clear_benchmarks!, compare_benchmarks
+export AllocationProfile, InlineAnalysis, CallNode, BloatAnalysis, AdvancedAnalysisReport
+export analyze_allocations, analyze_inlining, build_call_graph, analyze_bloat, advanced_analysis
 
 include("interpreter.jl")
 include("target.jl")
@@ -42,6 +46,7 @@ include("binary_size.jl")
 include("bundler.jl")
 include("optimization.jl")
 include("benchmark.jl")
+include("advanced_analysis.jl")
 
 fix_name(f::Function) = fix_name(string(nameof(f)))
 fix_name(s) = String(GPUCompiler.safe_name(s))

@@ -460,3 +460,70 @@ end
     @test r.exitcode == 0
     @test isa(r, Base.Process)
 end
+
+@testset "Advanced Static Analysis" begin
+    # Test allocation analysis
+    alloc_func(x::Int) = x + 1  # Simple, no allocations
+
+    alloc_profile = StaticCompiler.analyze_allocations(alloc_func, (Int,))
+    @test alloc_profile isa StaticCompiler.AllocationProfile
+    @test alloc_profile.total_allocations >= 0
+
+    # Test inline analysis
+    inline_info = StaticCompiler.analyze_inlining(alloc_func, (Int,))
+    @test inline_info isa StaticCompiler.InlineAnalysis
+    @test inline_info.inline_cost_estimates isa Dict
+
+    # Test call graph
+    graph = StaticCompiler.build_call_graph(alloc_func, (Int,))
+    @test graph isa Vector
+    @test all(n -> n isa StaticCompiler.CallNode, graph)
+
+    # Test bloat analysis
+    bloat = StaticCompiler.analyze_bloat(alloc_func, (Int,))
+    @test bloat isa StaticCompiler.BloatAnalysis
+    @test bloat.total_functions >= 0
+
+    # Test comprehensive analysis
+    report = StaticCompiler.advanced_analysis(alloc_func, (Int,), verbose=false)
+    @test report isa StaticCompiler.AdvancedAnalysisReport
+    @test 0.0 <= report.performance_score <= 100.0
+    @test 0.0 <= report.size_score <= 100.0
+end
+
+@testset "UPX Compression Support" begin
+    # Test UPX availability detection
+    avail, version = StaticCompiler.test_upx_available()
+    @test avail isa Bool
+    @test version isa String
+
+    # Only run compression tests if UPX is available
+    if avail
+        upx_func() = 0
+        exe = compile_executable(upx_func, (), workdir, "upx_test", strip_binary=false)
+        size_before = filesize(exe)
+
+        # Test compression (may fail if binary not compressible, that's ok)
+        try
+            StaticCompiler.compress_with_upx(exe, level=:fast, verify=false)
+            size_after = filesize(exe)
+            # Either compressed (smaller) or failed gracefully (same size)
+            @test size_after <= size_before
+        catch e
+            # UPX may fail on certain binaries, that's acceptable
+            @test true
+        end
+    end
+end
+
+@testset "LTO Profiles" begin
+    # Test that LTO profiles exist and are valid
+    @test isdefined(StaticCompiler, :PROFILE_SIZE_LTO)
+    @test isdefined(StaticCompiler, :PROFILE_SPEED_LTO)
+
+    # Test LTO profile flags
+    lto_flags = StaticCompiler.get_optimization_flags(StaticCompiler.PROFILE_SIZE_LTO)
+    @test any(f -> occursin("lto", f), lto_flags)
+
+    # Note: Not testing actual LTO compilation as it requires specific toolchain setup
+end

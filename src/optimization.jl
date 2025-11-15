@@ -18,20 +18,33 @@ struct OptimizationProfile
 end
 
 # Predefined profiles
+# Note: LTO disabled by default due to linker plugin issues
+# Enable manually with custom flags if your toolchain supports it
 const PROFILE_SIZE = OptimizationProfile(
-    OPT_SIZE, true, true, true, true, false, ["-Os", "-ffunction-sections", "-fdata-sections"]
+    OPT_SIZE, false, true, true, true, false, ["-Os", "-ffunction-sections", "-fdata-sections"]
 )
 
 const PROFILE_SPEED = OptimizationProfile(
-    OPT_SPEED, true, false, false, true, false, ["-O3", "-march=native", "-ffast-math"]
+    OPT_SPEED, false, false, false, true, false, ["-O3", "-march=native", "-ffast-math"]
 )
 
 const PROFILE_AGGRESSIVE = OptimizationProfile(
-    OPT_AGGRESSIVE, true, true, true, true, true, ["-O3", "-march=native", "-ffast-math", "-flto"]
+    OPT_AGGRESSIVE, false, true, true, true, true, ["-O3", "-march=native", "-ffast-math"]
 )
 
 const PROFILE_DEBUG = OptimizationProfile(
     OPT_NONE, false, false, false, false, false, ["-g", "-O0"]
+)
+
+# LTO-enabled profiles (use only if your toolchain supports it)
+const PROFILE_SIZE_LTO = OptimizationProfile(
+    OPT_SIZE, true, true, true, true, false,
+    ["-Os", "-flto=thin", "-ffunction-sections", "-fdata-sections"]
+)
+
+const PROFILE_SPEED_LTO = OptimizationProfile(
+    OPT_SPEED, true, false, false, true, false,
+    ["-O3", "-flto=thin", "-march=native", "-ffast-math"]
 )
 
 """
@@ -101,27 +114,99 @@ end
 
 function upx_available()
     try
-        run(pipeline(`which upx`, devnull))
+        run(pipeline(`which upx`, devnull, devnull))
         return true
     catch
         return false
     end
 end
 
-function compress_with_upx(binary_path::String)
+"""
+    compress_with_upx(binary_path; level=:best, verify=true)
+
+Compress binary with UPX.
+
+# Compression levels
+- `:fast` - Fast compression, moderate size reduction
+- `:best` - Best compression (default), slower but smaller
+- `:brute` - Brute force, maximum compression (very slow)
+- `:ultra` - Ultra brute force (extremely slow)
+
+# Example
+```julia
+compress_with_upx("/tmp/myapp", level=:best, verify=true)
+```
+"""
+function compress_with_upx(binary_path::String; level::Symbol=:best, verify::Bool=true)
     if !upx_available()
         @warn "UPX not found, skipping compression. Install with: apt-get install upx-ucl (Linux) or brew install upx (macOS)"
         return
     end
 
-    println("Compressing with UPX...")
+    println("Compressing with UPX (level: $level)...")
+
+    # Build UPX command based on level
+    cmd = `upx`
+
+    if level == :fast
+        cmd = `$cmd --fast`
+    elseif level == :best
+        cmd = `$cmd --best --lzma`
+    elseif level == :brute
+        cmd = `$cmd --brute --lzma`
+    elseif level == :ultra
+        cmd = `$cmd --ultra-brute --lzma`
+    else
+        @warn "Unknown compression level: $level, using :best"
+        cmd = `$cmd --best --lzma`
+    end
+
+    # Add verification flag
+    if !verify
+        cmd = `$cmd --no-verify`
+    end
+
+    # Compress
+    try
+        run(`$cmd $binary_path`)
+        println("  ✅ Compressed successfully")
+    catch e
+        # UPX can fail on certain binaries, provide helpful error
+        if occursin("NotCompressibleException", string(e)) || occursin("already compressed", string(e))
+            @warn "Binary already compressed or not compressible with UPX"
+        else
+            @warn "UPX compression failed" exception=e
+        end
+    end
+end
+
+"""
+    test_upx_available()
+
+Test if UPX is available and working.
+
+Returns a tuple of (available::Bool, version::String)
+
+# Example
+```julia
+avail, ver = test_upx_available()
+if avail
+    println("UPX version: \$ver")
+end
+```
+"""
+function test_upx_available()
+    if !upx_available()
+        return (false, "")
+    end
 
     try
-        # UPX with best compression
-        run(`upx --best --lzma $binary_path`)
-        println("  Compressed successfully")
-    catch e
-        @warn "UPX compression failed" exception=e
+        output = read(`upx --version`, String)
+        version_match = match(r"upx (\d+\.\d+\.\d+)", output)
+        version = version_match !== nothing ? version_match.captures[1] : "unknown"
+        return (true, version)
+    catch
+        return (true, "unknown")
     end
 end
 
@@ -196,4 +281,6 @@ end
 
 export OptimizationProfile, OptimizationLevel
 export PROFILE_SIZE, PROFILE_SPEED, PROFILE_AGGRESSIVE, PROFILE_DEBUG
+export PROFILE_SIZE_LTO, PROFILE_SPEED_LTO
 export optimize_binary, compile_executable_optimized, get_optimization_flags
+export compress_with_upx, test_upx_available
