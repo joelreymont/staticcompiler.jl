@@ -15,6 +15,23 @@ fib(n) = n <= 1 ? n : fib(n - 1) + fib(n - 2) # This needs to be defined globall
     end
 end
 
+@testset "Extended Error Overrides" begin
+    # Test that new error overrides are available and can be compiled
+    function test_bounds()
+        arr = (1, 2, 3)
+        try
+            # This would normally throw, but with override it should compile
+            arr[10]
+        catch
+            return 0
+        end
+        return 1
+    end
+
+    filepath = compile_shlib(test_bounds, (), workdir)
+    @test isfile(filepath)
+end
+
 @testset "Standalone Dylibs" begin
     # Test function
     # (already defined)
