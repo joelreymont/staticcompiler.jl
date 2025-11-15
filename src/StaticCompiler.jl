@@ -120,6 +120,21 @@ function compile_executable(funcs::Union{Array,Tuple}, path::String=pwd(), name=
         kwargs...
     )
 
+    # Windows-specific validation
+    if Sys.iswindows() && isnothing(target.compiler)
+        if !success(pipeline(`where clang`, devnull, devnull))
+            error("""
+            Clang not found on Windows. StaticCompiler requires LLVM/Clang for Windows compilation.
+
+            Install LLVM 17 or newer:
+              1. Using Chocolatey: choco install llvm
+              2. Or download from: https://github.com/llvm/llvm-project/releases
+
+            After installation, ensure 'clang' is in your PATH.
+            """)
+        end
+    end
+
     (f, types) = funcs[1]
     try
         tt = Base.to_tuple_type(types)
@@ -201,6 +216,21 @@ function compile_shlib(funcs::Union{Array,Tuple}, path::String=pwd();
         llvm_to_clang = Sys.iswindows(),
         kwargs...
     )
+    # Windows-specific validation
+    if Sys.iswindows() && isnothing(target.compiler)
+        if !success(pipeline(`where clang`, devnull, devnull))
+            error("""
+            Clang not found on Windows. StaticCompiler requires LLVM/Clang for Windows compilation.
+
+            Install LLVM 17 or newer:
+              1. Using Chocolatey: choco install llvm
+              2. Or download from: https://github.com/llvm/llvm-project/releases
+
+            After installation, ensure 'clang' is in your PATH.
+            """)
+        end
+    end
+
     try
         for func in funcs
             f, types = func

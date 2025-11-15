@@ -236,3 +236,17 @@ Base.Experimental.@overlay AnotherTable SubFoo.rand() = 3
         @test @ccall($fptr()::Int) == 6
     end
 end
+
+@testset "Windows Support" begin
+    # Test Windows-specific compilation path with llvm_to_clang
+    simple_func() = 42
+
+    if Sys.iswindows()
+        filepath = compile_shlib(simple_func, (), workdir, llvm_to_clang=true)
+        @test isfile(filepath)
+    else
+        # On non-Windows, just verify llvm_to_clang option is accepted
+        filepath = compile_shlib(simple_func, (), workdir, llvm_to_clang=false)
+        @test isfile(filepath)
+    end
+end
