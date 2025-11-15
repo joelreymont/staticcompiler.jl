@@ -117,6 +117,7 @@ function compile_executable(funcs::Union{Array,Tuple}, path::String=pwd(), name=
         cflags = ``,
         target::StaticTarget=StaticTarget(),
         llvm_to_clang = Sys.iswindows(),
+        strip_binary = false,
         kwargs...
     )
 
@@ -146,7 +147,7 @@ function compile_executable(funcs::Union{Array,Tuple}, path::String=pwd(), name=
         nativetype = isprimitivetype(rt) || isa(rt, Ptr)
         nativetype || @warn "Return type `$rt` of `$f$types` does not appear to be a native type. Consider returning only a single value of a native machine type (i.e., a single float, int/uint, bool, or pointer). \n\nIgnoring this warning may result in Undefined Behavior!"
 
-        generate_executable(funcs, path, name, filename; demangle, cflags, target, llvm_to_clang, kwargs...)
+        generate_executable(funcs, path, name, filename; demangle, cflags, target, llvm_to_clang, strip_binary, kwargs...)
         Sys.iswindows() && (filename *= ".exe")
         joinpath(abspath(path), filename)
     catch e
@@ -633,7 +634,8 @@ function generate_obj(funcs::Union{Array,Tuple}, path::String = tempname(), file
     mkpath(path)
 
     # Try to use cached result for single-function compilation
-    if use_cache && length(funcs) == 1 && !emit_llvm_only
+    # Only cache when demangle=true to avoid conflicts
+    if use_cache && demangle && length(funcs) == 1 && !emit_llvm_only
         cached = get_cached(f, tt, target)
         if !isnothing(cached)
             obj_path = joinpath(path, "$filenamebase.o")
@@ -664,8 +666,10 @@ function generate_obj(funcs::Union{Array,Tuple}, path::String = tempname(), file
       end
 
       # Cache the result for single-function compilation
-      if use_cache && length(funcs) == 1
-          cache_result!(f, tt, target, string(mod), obj)
+      # Only cache when demangle=true to avoid conflicts
+      if use_cache && demangle && length(funcs) == 1
+          obj_bytes = obj isa Vector{UInt8} ? obj : Vector{UInt8}(obj)
+          cache_result!(f, tt, target, string(mod), obj_bytes)
       end
 
       return path, obj_path

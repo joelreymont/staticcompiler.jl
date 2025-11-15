@@ -45,24 +45,6 @@ end
 @device_override @noinline Base.Math.sincos_domain_error(x) =
     @print_and_throw c"sincos(x) is only defined for finite x."
 
-# div.jl
-@device_override @noinline Base.throw_domerr_div(x, y) =
-    @print_and_throw c"Division domain error"
-
-# reduce.jl
-@device_override @noinline Base.reduce_empty(op, T) =
-    @print_and_throw c"Reduction over empty collection"
-@device_override @noinline Base.mapreduce_empty(f, op, T) =
-    @print_and_throw c"Map-reduce over empty collection"
-
-# array.jl
-@device_override @noinline Base.throw_checksize_error(A, sz) =
-    @print_and_throw c"Array size mismatch"
-
-# strings/util.jl
-@device_override @noinline Base.throw_string_length_err(n) =
-    @print_and_throw c"Invalid string length"
-
 @static if isdefined(StaticTools, :Bumper)
     Bumper = StaticTools.Bumper
     @device_override @noinline Bumper.AllocBufferImpl.oom_error() =
