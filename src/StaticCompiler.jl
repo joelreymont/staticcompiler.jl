@@ -107,8 +107,9 @@ Hello, world!
 """
 function compile_executable(f::Function, types=(), path::String=pwd(), name=fix_name(f);
                             also_expose=Tuple{Function, Tuple{DataType}}[], target::StaticTarget=StaticTarget(),
+                            strip_binary=false,
                             kwargs...)
-    compile_executable(vcat([(f, types)], also_expose), path, name; target, kwargs...)
+    compile_executable(vcat([(f, types)], also_expose), path, name; target, strip_binary, kwargs...)
 end
 
 function compile_executable(funcs::Union{Array,Tuple}, path::String=pwd(), name=fix_name(first(first(funcs)));
@@ -355,10 +356,14 @@ function generate_executable(funcs::Union{Array,Tuple}, path=tempname(), name=fi
     # Compile!
     if Sys.isapple() && !llvm_to_clang
         # Apple no longer uses _start, so we can just specify a custom entry
-        entry = demangle ? "_$name" : "_julia_$name"
+        # Use the actual function name, not the output filename
+        func_name = fix_name(first(first(funcs)))
+        entry = demangle ? "_$func_name" : "_julia_$func_name"
         run(`$cc -e $entry $cflags $obj_or_ir_path -o $exec_path`)
     else
-        fn = demangle ? "$name" : "julia_$name"
+        # Use the actual function name, not the output filename
+        func_name = fix_name(first(first(funcs)))
+        fn = demangle ? "$func_name" : "julia_$func_name"
         # Write a minimal wrapper to avoid having to specify a custom entry
         wrapper_path = joinpath(path, "wrapper.c")
         f = open(wrapper_path, "w")
