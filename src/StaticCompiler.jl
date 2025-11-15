@@ -634,13 +634,14 @@ function generate_obj(funcs::Union{Array,Tuple}, path::String = tempname(), file
                         strip_llvm = false,
                         strip_asm = true,
                         use_cache = true,
+                        method_table=StaticCompiler.method_table,
                         kwargs...)
     f, tt = funcs[1]
     mkpath(path)
 
     # Try to use cached result for single-function compilation
-    # Only cache when demangle=true to avoid conflicts
-    if use_cache && demangle && length(funcs) == 1 && !emit_llvm_only
+    # Only cache when demangle=true and using default method_table to avoid conflicts
+    if use_cache && demangle && length(funcs) == 1 && !emit_llvm_only && method_table === StaticCompiler.method_table
         cached = get_cached(f, tt, target)
         if !isnothing(cached)
             obj_path = joinpath(path, "$filenamebase.o")
@@ -651,7 +652,7 @@ function generate_obj(funcs::Union{Array,Tuple}, path::String = tempname(), file
         end
     end
 
-    mod = static_llvm_module(funcs; demangle, kwargs...)
+    mod = static_llvm_module(funcs; demangle, method_table, kwargs...)
 
     if emit_llvm_only # (Required on Windows)
       ir_path = joinpath(path, "$filenamebase.ll")
@@ -662,7 +663,7 @@ function generate_obj(funcs::Union{Array,Tuple}, path::String = tempname(), file
     else
       obj_path = joinpath(path, "$filenamebase.o")
       obj = GPUCompiler.JuliaContext() do ctx
-        fakejob, _ = static_job(f, tt; target, kwargs...)
+        fakejob, _ = static_job(f, tt; target, method_table, kwargs...)
         obj, _ = GPUCompiler.emit_asm(fakejob, mod; strip=strip_asm, validate=false, format=LLVM.API.LLVMObjectFile)
         obj
       end
@@ -671,8 +672,8 @@ function generate_obj(funcs::Union{Array,Tuple}, path::String = tempname(), file
       end
 
       # Cache the result for single-function compilation
-      # Only cache when demangle=true to avoid conflicts
-      if use_cache && demangle && length(funcs) == 1
+      # Only cache when demangle=true and using default method_table to avoid conflicts
+      if use_cache && demangle && length(funcs) == 1 && method_table === StaticCompiler.method_table
           obj_bytes = obj isa Vector{UInt8} ? obj : Vector{UInt8}(obj)
           cache_result!(f, tt, target, string(mod), obj_bytes)
       end
