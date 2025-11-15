@@ -412,3 +412,51 @@ end
     @test length(benchmarks) >= 1
     @test any(b -> b.function_name == "bench_func", benchmarks)
 end
+
+@testset "analyze_binary_size" begin
+    # Compile executable and analyze its size
+    analyze_func() = 42
+    exe = compile_executable(analyze_func, (), workdir, "analyze_test")
+    @test isfile(exe)
+
+    # Analyze the compiled binary
+    if !Sys.iswindows()
+        analysis = StaticCompiler.analyze_binary_size(exe)
+        @test haskey(analysis, :total_kb)
+        @test haskey(analysis, :sections)
+        @test haskey(analysis, :stripped)
+        @test analysis[:total_kb] > 0
+        # Check sections if they were successfully parsed
+        if haskey(analysis[:sections], :text)
+            @test analysis[:sections][:text] > 0
+        end
+    end
+end
+
+@testset "optimize_binary actual optimization" begin
+    # Compile unstripped binary
+    opt_func() = 0
+    exe = compile_executable(opt_func, (), workdir, "opt_actual_test", strip_binary=false)
+    size_before = filesize(exe)
+
+    # Optimize it (will strip symbols)
+    if !Sys.iswindows()
+        StaticCompiler.optimize_binary(exe, StaticCompiler.PROFILE_SIZE)
+        size_after = filesize(exe)
+        @test size_after < size_before
+    end
+end
+
+@testset "compile_executable_optimized" begin
+    # Test the convenience function
+    optimized_func() = 0
+    exe = StaticCompiler.compile_executable_optimized(
+        optimized_func, (), workdir, "exec_opt_test",
+        profile=StaticCompiler.PROFILE_DEBUG
+    )
+    @test isfile(exe)
+    # Verify it runs successfully
+    r = run(`$exe`)
+    @test r.exitcode == 0
+    @test isa(r, Base.Process)
+end
