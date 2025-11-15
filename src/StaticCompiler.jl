@@ -24,6 +24,7 @@ include("target.jl")
 include("pointer_warning.jl")
 include("quirks.jl")
 include("dllexport.jl")
+include("diagnostics.jl")
 
 fix_name(f::Function) = fix_name(string(nameof(f)))
 fix_name(s) = String(GPUCompiler.safe_name(s))
@@ -116,18 +117,22 @@ function compile_executable(funcs::Union{Array,Tuple}, path::String=pwd(), name=
     )
 
     (f, types) = funcs[1]
-    tt = Base.to_tuple_type(types)
-    isexecutableargtype = tt == Tuple{} || tt == Tuple{Int, Ptr{Ptr{UInt8}}}
-    isexecutableargtype || @warn "input type signature $types should be either `()` or `(Int, Ptr{Ptr{UInt8}})` for standard executables"
+    try
+        tt = Base.to_tuple_type(types)
+        isexecutableargtype = tt == Tuple{} || tt == Tuple{Int, Ptr{Ptr{UInt8}}}
+        isexecutableargtype || @warn "input type signature $types should be either `()` or `(Int, Ptr{Ptr{UInt8}})` for standard executables"
 
-    rt = last(only(static_code_typed(f, tt; target, kwargs...)))
-    isconcretetype(rt) || error("`$f$types` did not infer to a concrete type. Got `$rt`")
-    nativetype = isprimitivetype(rt) || isa(rt, Ptr)
-    nativetype || @warn "Return type `$rt` of `$f$types` does not appear to be a native type. Consider returning only a single value of a native machine type (i.e., a single float, int/uint, bool, or pointer). \n\nIgnoring this warning may result in Undefined Behavior!"
+        rt = last(only(static_code_typed(f, tt; target, kwargs...)))
+        isconcretetype(rt) || error("`$f$types` did not infer to a concrete type. Got `$rt`")
+        nativetype = isprimitivetype(rt) || isa(rt, Ptr)
+        nativetype || @warn "Return type `$rt` of `$f$types` does not appear to be a native type. Consider returning only a single value of a native machine type (i.e., a single float, int/uint, bool, or pointer). \n\nIgnoring this warning may result in Undefined Behavior!"
 
-    generate_executable(funcs, path, name, filename; demangle, cflags, target, llvm_to_clang, kwargs...)
-    Sys.iswindows() && (filename *= ".exe")
-    joinpath(abspath(path), filename)
+        generate_executable(funcs, path, name, filename; demangle, cflags, target, llvm_to_clang, kwargs...)
+        Sys.iswindows() && (filename *= ".exe")
+        joinpath(abspath(path), filename)
+    catch e
+        throw(diagnose_error(e, f, types))
+    end
 end
 
 """
@@ -192,20 +197,25 @@ function compile_shlib(funcs::Union{Array,Tuple}, path::String=pwd();
         llvm_to_clang = Sys.iswindows(),
         kwargs...
     )
-    for func in funcs
-        f, types = func
-        tt = Base.to_tuple_type(types)
-        isconcretetype(tt) || error("input type signature `$types` is not concrete")
+    try
+        for func in funcs
+            f, types = func
+            tt = Base.to_tuple_type(types)
+            isconcretetype(tt) || error("input type signature `$types` is not concrete")
 
-        rt = last(only(static_code_typed(f, tt; target, kwargs...)))
-        isconcretetype(rt) || error("`$f$types` did not infer to a concrete type. Got `$rt`")
-        nativetype = isprimitivetype(rt) || isa(rt, Ptr)
-        nativetype || @warn "Return type `$rt` of `$f$types` does not appear to be a native type. Consider returning only a single value of a native machine type (i.e., a single float, int/uint, bool, or pointer). \n\nIgnoring this warning may result in Undefined Behavior!"
+            rt = last(only(static_code_typed(f, tt; target, kwargs...)))
+            isconcretetype(rt) || error("`$f$types` did not infer to a concrete type. Got `$rt`")
+            nativetype = isprimitivetype(rt) || isa(rt, Ptr)
+            nativetype || @warn "Return type `$rt` of `$f$types` does not appear to be a native type. Consider returning only a single value of a native machine type (i.e., a single float, int/uint, bool, or pointer). \n\nIgnoring this warning may result in Undefined Behavior!"
+        end
+
+        generate_shlib(funcs, path, filename; demangle, cflags, target, llvm_to_clang, kwargs...)
+
+        joinpath(abspath(path), filename * "." * Libdl.dlext)
+    catch e
+        f, types = funcs[1]
+        throw(diagnose_error(e, f, types))
     end
-
-    generate_shlib(funcs, path, filename; demangle, cflags, target, llvm_to_clang, kwargs...)
-
-    joinpath(abspath(path), filename * "." * Libdl.dlext)
 end
 
 

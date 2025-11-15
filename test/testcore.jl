@@ -1,8 +1,19 @@
 workdir = tempdir()
 
-
-
 fib(n) = n <= 1 ? n : fib(n - 1) + fib(n - 2) # This needs to be defined globally due to https://github.com/JuliaLang/julia/issues/40990
+
+@testset "Error Diagnostics" begin
+    # Test that compilation errors include helpful suggestions
+    type_unstable(x) = x > 0 ? 1 : "string"
+
+    try
+        compile_shlib(type_unstable, (Int,), workdir)
+        @test false  # Should not reach here
+    catch e
+        @test e isa StaticCompiler.CompilationError
+        @test occursin("code_warntype", join(e.suggestions, " "))
+    end
+end
 
 @testset "Standalone Dylibs" begin
     # Test function
