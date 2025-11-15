@@ -14,12 +14,21 @@ using StaticTools: @symbolcall, @c_str, println
 using Core: MethodTable
 using Base:BinaryPlatforms.Platform, BinaryPlatforms.HostPlatform, BinaryPlatforms.arch, BinaryPlatforms.os_str, BinaryPlatforms.libc_str
 using Base:BinaryPlatforms.platform_dlext
+using Dates
+
 export load_function, compile_shlib, compile_executable
 export static_code_llvm, static_code_typed, static_llvm_module, static_code_native
 export @device_override, @print_and_throw
 export StaticTarget
 export check_compilable, CompilabilityReport
 export clear_cache!, cache_stats, prune_cache!
+export estimate_binary_size, analyze_binary_size, SizeEstimate
+export analyze_dependencies, create_bundle, BundleConfig
+export OptimizationProfile, OptimizationLevel
+export PROFILE_SIZE, PROFILE_SPEED, PROFILE_AGGRESSIVE, PROFILE_DEBUG
+export optimize_binary, compile_executable_optimized, get_optimization_flags
+export @benchmark_compilation, benchmark_compile
+export load_benchmarks, show_benchmark_history, clear_benchmarks!, compare_benchmarks
 
 include("interpreter.jl")
 include("target.jl")
@@ -29,6 +38,10 @@ include("dllexport.jl")
 include("diagnostics.jl")
 include("checker.jl")
 include("cache.jl")
+include("binary_size.jl")
+include("bundler.jl")
+include("optimization.jl")
+include("benchmark.jl")
 
 fix_name(f::Function) = fix_name(string(nameof(f)))
 fix_name(s) = String(GPUCompiler.safe_name(s))

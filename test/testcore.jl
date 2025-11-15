@@ -341,3 +341,74 @@ end
     filepath = compile_shlib(multi_return, (Int,), workdir, "multi_return")
     @test isfile(filepath)
 end
+
+@testset "Binary Size Estimation" begin
+    # Test size estimation
+    size_test_func(x::Int) = x * 2 + 1
+
+    estimate = StaticCompiler.estimate_binary_size(size_test_func, (Int,), verbose=false)
+    @test estimate.expected_kb > 0
+    @test estimate.min_kb <= estimate.expected_kb <= estimate.max_kb
+    @test 0.0 < estimate.confidence <= 1.0
+    @test haskey(estimate.breakdown, :base)
+end
+
+@testset "Dependency Analysis" begin
+    # Compile a simple executable
+    dep_test_func() = 42
+
+    filepath = compile_executable(dep_test_func, (), workdir, "dep_test")
+    @test isfile(filepath)
+
+    # Analyze dependencies
+    deps = StaticCompiler.analyze_dependencies(filepath)
+    @test haskey(deps, :system)
+    @test haskey(deps, :custom)
+    @test haskey(deps, :missing)
+end
+
+@testset "Binary Bundler" begin
+    # Test bundle creation
+    bundle_func() = 0
+
+    exe_path = compile_executable(bundle_func, (), workdir, "bundle_test")
+    @test isfile(exe_path)
+
+    bundle_dir = joinpath(workdir, "bundle_output")
+    config = StaticCompiler.BundleConfig(bundle_dir)
+
+    bundle_path = StaticCompiler.create_bundle(exe_path, config)
+    @test isdir(bundle_path)
+    @test isfile(joinpath(bundle_path, "bundle_test"))
+    @test isfile(joinpath(bundle_path, "README.txt"))
+end
+
+@testset "Optimization Profiles" begin
+    # Test optimization flag generation
+    flags_size = StaticCompiler.get_optimization_flags(StaticCompiler.PROFILE_SIZE)
+    @test any(f -> occursin("-Os", f), flags_size)
+
+    flags_speed = StaticCompiler.get_optimization_flags(StaticCompiler.PROFILE_SPEED)
+    @test any(f -> occursin("-O3", f), flags_speed)
+
+    flags_debug = StaticCompiler.get_optimization_flags(StaticCompiler.PROFILE_DEBUG)
+    @test any(f -> occursin("-O0", f), flags_debug)
+end
+
+@testset "Benchmark Infrastructure" begin
+    # Test benchmarking
+    bench_func(x::Int) = x + 1
+
+    StaticCompiler.clear_benchmarks!()
+
+    _, result = StaticCompiler.benchmark_compile(bench_func, (Int,), path=workdir, name="bench_test")
+
+    @test result.compilation_time_s > 0
+    @test result.binary_size_kb > 0
+    @test result.function_name == "bench_func"
+
+    # Check benchmark was saved
+    benchmarks = StaticCompiler.load_benchmarks()
+    @test length(benchmarks) >= 1
+    @test any(b -> b.function_name == "bench_func", benchmarks)
+end
