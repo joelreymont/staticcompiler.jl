@@ -309,6 +309,7 @@ function generate_executable(funcs::Union{Array,Tuple}, path=tempname(), name=fi
                              cflags = ``,
                              target::StaticTarget=StaticTarget(),
                              llvm_to_clang::Bool = Sys.iswindows(),
+                             strip_binary::Bool = false,
                              kwargs...
                              )
     exec_path = joinpath(path, filename)
@@ -357,6 +358,16 @@ function generate_executable(funcs::Union{Array,Tuple}, path=tempname(), name=fi
         # Clean up
         rm(wrapper_path)
     end
+
+    # Strip symbols if requested (not supported on Windows)
+    if strip_binary && !Sys.iswindows()
+        try
+            run(`strip $exec_path`)
+        catch e
+            @warn "Failed to strip binary: $e"
+        end
+    end
+
     path, name
 end
 

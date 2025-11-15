@@ -176,6 +176,20 @@ function squaresquaresquare(n)
     square(squaresquare(n))
 end
 
+@testset "Binary Size Optimization" begin
+    # Test that strip_binary option reduces executable size
+    strip_test_func() = 0
+
+    filepath_unstripped = compile_executable(strip_test_func, (), workdir, "unstripped", strip_binary=false)
+    size_unstripped = filesize(filepath_unstripped)
+
+    if !Sys.iswindows()
+        filepath_stripped = compile_executable(strip_test_func, (), workdir, "stripped", strip_binary=true)
+        size_stripped = filesize(filepath_stripped)
+        @test size_stripped <= size_unstripped
+    end
+end
+
 @testset "Multiple Function Dylibs" begin
 
     funcs = [(squaresquare,(Float64,)), (squaresquaresquare,(Float64,))]
