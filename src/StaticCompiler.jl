@@ -18,6 +18,7 @@ export load_function, compile_shlib, compile_executable
 export static_code_llvm, static_code_typed, static_llvm_module, static_code_native
 export @device_override, @print_and_throw
 export StaticTarget
+export check_compilable, CompilabilityReport
 
 include("interpreter.jl")
 include("target.jl")
@@ -25,6 +26,7 @@ include("pointer_warning.jl")
 include("quirks.jl")
 include("dllexport.jl")
 include("diagnostics.jl")
+include("checker.jl")
 
 fix_name(f::Function) = fix_name(string(nameof(f)))
 fix_name(s) = String(GPUCompiler.safe_name(s))

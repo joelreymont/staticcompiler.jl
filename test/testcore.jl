@@ -32,6 +32,19 @@ end
     @test isfile(filepath)
 end
 
+@testset "Compilability Checker" begin
+    # Test compilability checker identifies type instability
+    good_func(x::Int) = x + 1
+    bad_func(x) = x > 0 ? 1 : "string"
+
+    good_report = check_compilable(good_func, (Int,), verbose=false)
+    @test good_report.compilable
+
+    bad_report = check_compilable(bad_func, (Int,), verbose=false)
+    @test !bad_report.compilable
+    @test any(i.category == :type_instability for i in bad_report.issues)
+end
+
 @testset "Standalone Dylibs" begin
     # Test function
     # (already defined)
