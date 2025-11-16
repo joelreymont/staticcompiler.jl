@@ -48,6 +48,8 @@ export BenchmarkResult, BenchmarkConfig, benchmark_function, compare_optimizatio
 export detect_performance_regression, save_benchmark_history, format_time, format_bytes
 export ProfileData, PGOConfig, PGOResult, collect_profile, pgo_compile
 export save_profile_data, load_profile_data, compare_pgo_results
+export OptimizationPreset, get_preset, list_presets, compile_with_preset, compare_presets
+export PRESET_EMBEDDED, PRESET_SERVERLESS, PRESET_HPC, PRESET_DESKTOP, PRESET_DEVELOPMENT, PRESET_RELEASE
 
 include("interpreter.jl")
 include("target.jl")
@@ -73,6 +75,7 @@ include("comprehensive_report.jl")
 include("ci_integration.jl")
 include("benchmarking.jl")
 include("pgo.jl")
+include("presets.jl")
 
 fix_name(f::Function) = fix_name(string(nameof(f)))
 fix_name(s) = String(GPUCompiler.safe_name(s))

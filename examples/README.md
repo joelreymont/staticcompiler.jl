@@ -94,6 +94,30 @@ Sophisticated features for power users:
 - Runtime profiling
 - Hot path identification
 
+### Optimization Presets (`presets/`)
+
+Predefined configurations for common scenarios:
+
+- **`presets_demo.jl`** - Using optimization presets for different use cases
+
+**Concepts covered:**
+- Predefined optimization configurations
+- Embedded systems optimization
+- Serverless/FaaS optimization
+- High-performance computing
+- Desktop applications
+- Development builds
+- Production releases
+- Preset comparison
+
+**Available Presets:**
+- **EMBEDDED** - Minimal size for IoT/embedded
+- **SERVERLESS** - Fast startup for Lambda/Functions
+- **HPC** - Maximum performance for computing
+- **DESKTOP** - Balanced for general use
+- **DEVELOPMENT** - Fast compilation for debugging
+- **RELEASE** - Production-ready with security
+
 ### CI/CD Integration (`ci/`)
 
 Continuous integration and deployment examples:
@@ -134,6 +158,9 @@ julia examples/advanced/wizard_demo.jl
 julia examples/advanced/dependency_demo.jl
 julia examples/advanced/comprehensive_report_demo.jl
 julia examples/advanced/pgo_demo.jl
+
+# Preset examples
+julia examples/presets/presets_demo.jl
 
 # CI/CD integration
 julia examples/ci/github_actions_example.jl

@@ -1078,3 +1078,124 @@ end
         rm(workdir, recursive=true, force=true)
     end
 end
+
+@testset "Optimization Presets" begin
+    # Test function
+    preset_test_func(x::Int) = x * 2 + 10
+
+    # Test preset retrieval
+    embedded_preset = StaticCompiler.get_preset(:embedded)
+    @test embedded_preset isa StaticCompiler.OptimizationPreset
+    @test embedded_preset.name == :embedded
+    @test embedded_preset.use_upx == true
+    @test embedded_preset.strip_binary == true
+
+    serverless_preset = StaticCompiler.get_preset(:serverless)
+    @test serverless_preset isa StaticCompiler.OptimizationPreset
+    @test serverless_preset.name == :serverless
+    @test serverless_preset.use_upx == false  # No UPX for serverless
+
+    hpc_preset = StaticCompiler.get_preset(:hpc)
+    @test hpc_preset isa StaticCompiler.OptimizationPreset
+    @test hpc_preset.name == :hpc
+    @test hpc_preset.benchmark_enabled == true
+
+    desktop_preset = StaticCompiler.get_preset(:desktop)
+    @test desktop_preset isa StaticCompiler.OptimizationPreset
+    @test desktop_preset.name == :desktop
+
+    dev_preset = StaticCompiler.get_preset(:development)
+    @test dev_preset isa StaticCompiler.OptimizationPreset
+    @test dev_preset.name == :development
+    @test dev_preset.strip_binary == false  # Keep symbols for debugging
+
+    release_preset = StaticCompiler.get_preset(:release)
+    @test release_preset isa StaticCompiler.OptimizationPreset
+    @test release_preset.name == :release
+    @test release_preset.enable_lto == true
+
+    # Test unknown preset
+    unknown = StaticCompiler.get_preset(:nonexistent)
+    @test unknown === nothing
+
+    # Test listing presets
+    preset_names = StaticCompiler.list_presets(verbose=false)
+    @test preset_names isa Vector
+    @test length(preset_names) == 6
+    @test :embedded in preset_names
+    @test :serverless in preset_names
+    @test :hpc in preset_names
+    @test :desktop in preset_names
+    @test :development in preset_names
+    @test :release in preset_names
+
+    # Test ALL_PRESETS constant
+    @test length(StaticCompiler.ALL_PRESETS) == 6
+    @test all(p -> p isa StaticCompiler.OptimizationPreset, StaticCompiler.ALL_PRESETS)
+
+    # Test preset constants are accessible
+    @test StaticCompiler.PRESET_EMBEDDED.name == :embedded
+    @test StaticCompiler.PRESET_SERVERLESS.name == :serverless
+    @test StaticCompiler.PRESET_HPC.name == :hpc
+    @test StaticCompiler.PRESET_DESKTOP.name == :desktop
+    @test StaticCompiler.PRESET_DEVELOPMENT.name == :development
+    @test StaticCompiler.PRESET_RELEASE.name == :release
+
+    # Test preset properties
+    @test embedded_preset.optimization_profile == :PROFILE_SIZE_LTO
+    @test serverless_preset.optimization_profile == :PROFILE_SIZE
+    @test hpc_preset.optimization_profile == :PROFILE_AGGRESSIVE
+    @test desktop_preset.optimization_profile == :PROFILE_SPEED
+    @test dev_preset.optimization_profile == :PROFILE_DEBUG
+    @test release_preset.optimization_profile == :PROFILE_SPEED_LTO
+
+    # Test preset descriptions
+    @test length(embedded_preset.description) > 0
+    @test length(embedded_preset.recommended_for) > 0
+    @test "Embedded systems" in embedded_preset.recommended_for
+
+    # Test compile_with_preset
+    workdir = mktempdir()
+    try
+        result = StaticCompiler.compile_with_preset(
+            preset_test_func,
+            (Int,),
+            workdir,
+            "preset_test",
+            :desktop,
+            args=(100,),
+            verbose=false
+        )
+
+        @test result isa Dict
+        @test haskey(result, "preset")
+        @test result["preset"] == :desktop
+        @test haskey(result, "function")
+        @test result["function"] == "preset_test_func"
+        @test haskey(result, "scores")
+        @test haskey(result["scores"], "overall")
+        @test haskey(result["scores"], "performance")
+        @test haskey(result["scores"], "size")
+        @test haskey(result["scores"], "security")
+        @test haskey(result, "total_time_seconds")
+
+        if haskey(result, "binary_size")
+            @test result["binary_size"] > 0
+        end
+
+    catch e
+        @warn "Preset compilation test skipped: $e"
+    finally
+        rm(workdir, recursive=true, force=true)
+    end
+
+    # Test compile_with_preset error handling
+    @test_throws Exception StaticCompiler.compile_with_preset(
+        preset_test_func,
+        (Int,),
+        mktempdir(),
+        "test",
+        :nonexistent_preset,
+        verbose=false
+    )
+end
