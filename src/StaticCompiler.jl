@@ -54,8 +54,12 @@ export SmartOptimizationResult, smart_optimize, quick_compile
 export parse_json, parse_json_file, write_json, write_json_file, to_json_string
 export ResultCacheConfig, result_cache_key, cache_benchmark_result, load_cached_benchmark
 export cache_pgo_result, load_cached_pgo, clean_result_cache, clear_result_cache, result_cache_stats
+export CompilationError, CompilationFailure, BenchmarkError, PGOError
+export with_cleanup, safe_compile, safe_benchmark, retry_on_failure
+export validate_compilation_result, collect_diagnostics, error_context
 
 include("constants.jl")
+include("error_handling.jl")
 include("json_utils.jl")
 include("interpreter.jl")
 include("target.jl")

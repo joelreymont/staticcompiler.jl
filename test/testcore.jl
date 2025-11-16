@@ -1606,3 +1606,301 @@ end
         end
     end
 end
+
+@testset "JSON Utilities Tests" begin
+    @testset "JSON parsing" begin
+        # Parse primitives
+        @test parse_json("null") === nothing
+        @test parse_json("true") == true
+        @test parse_json("false") == false
+        @test parse_json("42") == 42
+        @test parse_json("3.14") == 3.14
+        @test parse_json("\"hello\"") == "hello"
+
+        # Parse arrays
+        @test parse_json("[]") == []
+        @test parse_json("[1, 2, 3]") == [1, 2, 3]
+        @test parse_json("[\"a\", \"b\"]") == ["a", "b"]
+
+        # Parse objects
+        @test parse_json("{}") == Dict{String,Any}()
+        obj = parse_json("{\"key\": \"value\", \"count\": 42}")
+        @test obj["key"] == "value"
+        @test obj["count"] == 42
+
+        # Parse nested structures
+        nested = parse_json("{\"array\": [1, 2], \"nested\": {\"inner\": true}}")
+        @test nested["array"] == [1, 2]
+        @test nested["nested"]["inner"] == true
+
+        # Parse escaped strings
+        @test parse_json("\"line1\\nline2\"") == "line1\nline2"
+        @test parse_json("\"tab\\there\"") == "tab\there"
+    end
+
+    @testset "JSON serialization" begin
+        # Serialize primitives
+        @test to_json_string(nothing) == "null"
+        @test to_json_string(true) == "true"
+        @test to_json_string(false) == "false"
+        @test to_json_string(42) == "42"
+        @test to_json_string("test") == "\"test\""
+
+        # Serialize arrays
+        @test occursin("[", to_json_string([1, 2, 3]))
+        @test occursin("1", to_json_string([1, 2, 3]))
+
+        # Serialize objects
+        json_str = to_json_string(Dict("key" => "value"))
+        @test occursin("key", json_str)
+        @test occursin("value", json_str)
+    end
+
+    @testset "JSON round-trip" begin
+        # Test that parse(serialize(x)) == x
+        data = Dict(
+            "string" => "hello",
+            "number" => 42,
+            "float" => 3.14,
+            "bool" => true,
+            "null" => nothing,
+            "array" => [1, 2, 3],
+            "nested" => Dict("inner" => "value")
+        )
+
+        json_str = to_json_string(data)
+        parsed = parse_json(json_str)
+
+        @test parsed["string"] == "hello"
+        @test parsed["number"] == 42
+        @test abs(parsed["float"] - 3.14) < 0.01
+        @test parsed["bool"] == true
+        @test parsed["null"] === nothing
+        @test parsed["array"] == [1, 2, 3]
+        @test parsed["nested"]["inner"] == "value"
+    end
+
+    @testset "JSON file operations" begin
+        tmpfile = tempname() * ".json"
+
+        try
+            # Write JSON file
+            data = Dict("test" => 123, "array" => [1, 2, 3])
+            write_json_file(tmpfile, data)
+
+            @test isfile(tmpfile)
+
+            # Read JSON file
+            loaded = parse_json_file(tmpfile)
+            @test loaded["test"] == 123
+            @test loaded["array"] == [1, 2, 3]
+
+        finally
+            rm(tmpfile, force=true)
+        end
+    end
+end
+
+@testset "Result Cache Tests" begin
+    test_cache_dir = mktempdir()
+    config = ResultCacheConfig(
+        enabled=true,
+        cache_dir=test_cache_dir,
+        max_age_days=30,
+        auto_clean=false
+    )
+
+    try
+        @testset "Cache configuration" begin
+            @test config.enabled == true
+            @test config.cache_dir == test_cache_dir
+            @test config.max_age_days == 30
+        end
+
+        @testset "Cache key generation" begin
+            key1 = result_cache_key(identity, (Int,), 100)
+            key2 = result_cache_key(identity, (Int,), 100)
+            key3 = result_cache_key(identity, (Int,), 200)
+
+            @test key1 == key2  # Same function+args = same key
+            @test key1 != key3  # Different args = different key
+        end
+
+        @testset "Benchmark result caching" begin
+            # Create a mock benchmark result
+            result = BenchmarkResult(
+                "test_func",
+                100,
+                1000.0,
+                2000.0,
+                2100.0,
+                3000.0,
+                500.0,
+                0,
+                0,
+                :PROFILE_SPEED,
+                50000,
+                Dates.now()
+            )
+
+            key = "test_key_benchmark"
+
+            # Cache the result
+            cached_file = cache_benchmark_result(result, key, config=config)
+            @test cached_file !== nothing
+            @test isfile(cached_file)
+
+            # Load the cached result
+            loaded = load_cached_benchmark(key, config=config)
+            @test loaded !== nothing
+            @test loaded.function_name == "test_func"
+            @test loaded.samples == 100
+            @test loaded.median_time_ns == 2000.0
+            @test loaded.optimization_profile == :PROFILE_SPEED
+        end
+
+        @testset "Cache statistics" begin
+            stats = result_cache_stats(config)
+
+            @test stats["exists"] == true
+            @test stats["total_entries"] >= 0
+            @test stats["total_size_bytes"] >= 0
+            @test stats["cache_dir"] == test_cache_dir
+        end
+
+        @testset "Cache cleanup" begin
+            # Add some cache entries
+            for i in 1:5
+                key = "cleanup_test_$i"
+                result = BenchmarkResult(
+                    "test_$i", 10, 100.0, 200.0, 210.0, 300.0, 50.0,
+                    0, 0, nothing, 1000, Dates.now()
+                )
+                cache_benchmark_result(result, key, config=config)
+            end
+
+            # Clear cache
+            removed = clear_result_cache(config)
+            @test removed >= 5
+
+            # Verify cache is empty
+            stats = result_cache_stats(config)
+            @test stats["total_entries"] == 0
+        end
+
+    finally
+        rm(test_cache_dir, recursive=true, force=true)
+    end
+end
+
+@testset "Error Handling Tests" begin
+    @testset "with_cleanup" begin
+        cleanup_called = Ref(false)
+        cleanup = () -> (cleanup_called[] = true)
+
+        # Test successful execution
+        result = with_cleanup(
+            () -> 42,
+            cleanup
+        )
+
+        @test result == 42
+        @test cleanup_called[]
+
+        # Test cleanup on error
+        cleanup_called[] = false
+
+        @test_throws ErrorException with_cleanup(
+            () -> error("test error"),
+            cleanup
+        )
+
+        @test cleanup_called[]
+    end
+
+    @testset "retry_on_failure" begin
+        attempt_count = Ref(0)
+
+        # Test successful retry
+        result = retry_on_failure(
+            () -> begin
+                attempt_count[] += 1
+                attempt_count[] == 3 ? 42 : error("not yet")
+            end,
+            max_attempts=5,
+            delay_seconds=0.01,
+            verbose=false
+        )
+
+        @test result == 42
+        @test attempt_count[] == 3
+
+        # Test all attempts fail
+        attempt_count[] = 0
+
+        @test_throws ErrorException retry_on_failure(
+            () -> begin
+                attempt_count[] += 1
+                error("always fails")
+            end,
+            max_attempts=3,
+            delay_seconds=0.01,
+            verbose=false
+        )
+
+        @test attempt_count[] == 3
+    end
+
+    @testset "validate_compilation_result" begin
+        # Create a valid mock binary
+        tmpdir = mktempdir()
+
+        try
+            valid_binary = joinpath(tmpdir, "valid")
+            write(valid_binary, repeat("X", 1000))  # 1KB file
+
+            if !Sys.iswindows()
+                chmod(valid_binary, 0o755)  # Make executable
+            end
+
+            @test validate_compilation_result(valid_binary, min_size_bytes=100)
+
+            # Test non-existent file
+            @test !validate_compilation_result(joinpath(tmpdir, "nonexistent"))
+
+            # Test too-small file
+            small_binary = joinpath(tmpdir, "small")
+            write(small_binary, "X")  # 1 byte
+            @test !validate_compilation_result(small_binary, min_size_bytes=100)
+
+        finally
+            rm(tmpdir, recursive=true, force=true)
+        end
+    end
+
+    @testset "collect_diagnostics" begin
+        simple_func(x::Int) = x * 2
+
+        diag = collect_diagnostics(simple_func, (Int,))
+
+        @test haskey(diag, "function_name")
+        @test diag["function_name"] == "simple_func"
+        @test haskey(diag, "type_signature")
+        @test haskey(diag, "method_count")
+        @test diag["method_count"] >= 1
+    end
+
+    @testset "error_context" begin
+        context = Dict("operation" => "test", "stage" => "validation")
+
+        # Test successful execution
+        result = error_context(() -> 100, context)
+        @test result == 100
+
+        # Test error with context (should rethrow)
+        @test_throws ErrorException error_context(
+            () -> error("test error"),
+            context
+        )
+    end
+end
