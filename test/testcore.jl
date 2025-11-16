@@ -2148,6 +2148,65 @@ end
         set_log_config(config2)
         @test get_log_config().level == ERROR
     end
+
+    @testset "TOML Configuration Files" begin
+        tmpdir = mktempdir()
+        config_path = joinpath(tmpdir, "test_config.toml")
+
+        try
+            # Create default config file
+            create_default_config_file(config_path)
+            @test isfile(config_path)
+
+            # Load config
+            config = load_config(config_path)
+            @test config isa CompilerConfig
+            @test config.logging.level == INFO
+            @test config.default_preset == :desktop
+
+            # Save custom config
+            custom_path = joinpath(tmpdir, "custom.toml")
+            custom_config = CompilerConfig(
+                LogConfig(level=DEBUG, log_to_file=true),
+                ResultCacheConfig(enabled=true, max_age_days=7),
+                ParallelConfig(max_concurrent=2),
+                :release,
+                :arm64_linux
+            )
+            save_config(custom_config, custom_path)
+
+            # Load and verify custom config
+            loaded = load_config(custom_path)
+            @test loaded.logging.level == DEBUG
+            @test loaded.caching.max_age_days == 7
+            @test loaded.default_preset == :release
+        finally
+            rm(tmpdir, recursive=true, force=true)
+        end
+    end
+
+    @testset "TOML Parsing" begin
+        tmpdir = mktempdir()
+        toml_path = joinpath(tmpdir, "test.toml")
+
+        try
+            # Write test TOML
+            open(toml_path, "w") do io
+                println(io, "[section1]")
+                println(io, "string_val = \"hello\"")
+                println(io, "int_val = 42")
+                println(io, "bool_val = true")
+            end
+
+            parsed = parse_toml_file(toml_path)
+            @test haskey(parsed, "section1")
+            @test parsed["section1"]["string_val"] == "hello"
+            @test parsed["section1"]["int_val"] == 42
+            @test parsed["section1"]["bool_val"] == true
+        finally
+            rm(tmpdir, recursive=true, force=true)
+        end
+    end
 end
 
 @testset "Integration Tests" begin

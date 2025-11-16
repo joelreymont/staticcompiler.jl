@@ -65,6 +65,8 @@ export with_logging, log_section, log_progress, rotate_log_file, clear_log_file
 export CrossTarget, get_cross_target, list_cross_targets
 export cross_compile, cross_compile_with_preset, compare_cross_targets, detect_host_target
 export interactive_optimize, quick_interactive_menu
+export CompilerConfig, ParallelConfig, load_config, save_config, apply_config
+export default_config, create_default_config_file, parse_toml_file
 
 include("constants.jl")
 include("logging.jl")
@@ -98,6 +100,7 @@ include("presets.jl")
 include("smart_optimize.jl")
 include("result_cache.jl")
 include("parallel.jl")
+include("config.jl")  # After result_cache for ResultCacheConfig dependency
 include("cross_compile.jl")
 include("interactive_tui.jl")
 
