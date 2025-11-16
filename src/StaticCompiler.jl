@@ -57,6 +57,7 @@ export cache_pgo_result, load_cached_pgo, clean_result_cache, clear_result_cache
 export CompilationError, CompilationFailure, BenchmarkError, PGOError
 export with_cleanup, safe_compile, safe_benchmark, retry_on_failure
 export validate_compilation_result, collect_diagnostics, error_context
+export parallel_compare_presets, parallel_benchmark_profiles, get_optimal_concurrency
 
 include("constants.jl")
 include("error_handling.jl")
@@ -88,6 +89,7 @@ include("pgo.jl")
 include("presets.jl")
 include("smart_optimize.jl")
 include("result_cache.jl")
+include("parallel.jl")
 
 fix_name(f::Function) = fix_name(string(nameof(f)))
 fix_name(s) = String(GPUCompiler.safe_name(s))
