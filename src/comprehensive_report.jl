@@ -24,6 +24,7 @@ struct ComprehensiveReport
     memory_layout::Union{MemoryLayoutReport, Nothing}
     dependencies::Union{DependencyReport, Nothing}
     recommendations::Union{OptimizationRecommendations, Nothing}
+    benchmark::Union{BenchmarkResult, Nothing}
 
     # Overall scores
     overall_score::Float64  # 0-100
@@ -37,7 +38,7 @@ struct ComprehensiveReport
 end
 
 """
-    generate_comprehensive_report(f, types; compile=false, path=tempdir(), name="output", verbose=true)
+    generate_comprehensive_report(f, types; compile=false, benchmark=false, benchmark_args=nothing, path=tempdir(), name="output", verbose=true)
 
 Generate a comprehensive report combining all available analyses.
 
@@ -45,6 +46,8 @@ Generate a comprehensive report combining all available analyses.
 - `f`: Function to analyze
 - `types`: Type signature tuple
 - `compile`: If true, actually compile the binary
+- `benchmark`: If true, run runtime performance benchmarks (requires benchmark_args)
+- `benchmark_args`: Tuple of arguments for benchmarking (required if benchmark=true)
 - `path`: Output path for binary
 - `name`: Binary name
 - `verbose`: Print progress
@@ -55,10 +58,10 @@ function my_func(x::Int)
     return x * x + 2
 end
 
-report = generate_comprehensive_report(my_func, (Int,), compile=true)
+report = generate_comprehensive_report(my_func, (Int,), compile=true, benchmark=true, benchmark_args=(100,))
 ```
 """
-function generate_comprehensive_report(f, types; compile=false, path=tempdir(), name="output", verbose=true)
+function generate_comprehensive_report(f, types; compile=false, benchmark=false, benchmark_args=nothing, path=tempdir(), name="output", verbose=true)
     if verbose
         println("\n" * "="^70)
         println("GENERATING COMPREHENSIVE REPORT")
@@ -180,6 +183,38 @@ function generate_comprehensive_report(f, types; compile=false, path=tempdir(), 
         end
     end
 
+    # 9. Benchmark if requested
+    benchmark_report = nothing
+    if benchmark
+        if benchmark_args === nothing
+            if verbose
+                println("\n⚠️  Benchmark requested but no benchmark_args provided")
+            end
+        else
+            if verbose
+                println("\n⏱️  Running performance benchmark...")
+            end
+
+            try
+                bench_config = BenchmarkConfig(
+                    samples = 50,
+                    warmup_samples = 5,
+                    measure_allocations = true
+                )
+                benchmark_report = benchmark_function(f, types, benchmark_args, config=bench_config, verbose=false)
+
+                if verbose
+                    println("   ✓ Median: $(format_time(benchmark_report.median_time_ns))")
+                    println("   Mean: $(format_time(benchmark_report.mean_time_ns)) ± $(format_time(benchmark_report.std_dev_ns))")
+                end
+            catch e
+                if verbose
+                    println("   ✗ Benchmark failed: $e")
+                end
+            end
+        end
+    end
+
     # Calculate overall scores
     perf_score = _calculate_performance_score(alloc_report, inline_report, simd_report)
     size_score = _calculate_size_score(bloat_report, dependency_report, binary_size)
@@ -200,6 +235,7 @@ function generate_comprehensive_report(f, types; compile=false, path=tempdir(), 
         nothing,  # memory_layout not applicable for functions
         dependency_report,
         recommendation_report,
+        benchmark_report,
         overall,
         perf_score,
         size_score,
@@ -370,6 +406,14 @@ function export_report_json(report::ComprehensiveReport, filepath::String)
             "bloat_score" => report.dependencies.bloat_score,
             "total_functions" => report.dependencies.total_functions,
             "modules" => length(report.dependencies.unique_modules)
+        ) : nothing,
+        "benchmark" => report.benchmark !== nothing ? Dict(
+            "median_time_ns" => report.benchmark.median_time_ns,
+            "mean_time_ns" => report.benchmark.mean_time_ns,
+            "std_dev_ns" => report.benchmark.std_dev_ns,
+            "samples" => report.benchmark.samples,
+            "allocations" => report.benchmark.allocations,
+            "memory_bytes" => report.benchmark.memory_bytes
         ) : nothing
     )
 
@@ -474,6 +518,19 @@ function export_report_markdown(report::ComprehensiveReport, filepath::String)
         println(io, "- Score: $(round(report.security.security_score, digits=1))/100")
         println(io, "- Critical Issues: $(length(report.security.critical_issues))")
         println(io, "- Warnings: $(length(report.security.warnings))")
+        println(io, "")
+    end
+
+    if report.benchmark !== nothing
+        println(io, "## Performance Benchmark")
+        println(io, "")
+        println(io, "- Median Time: $(format_time(report.benchmark.median_time_ns))")
+        println(io, "- Mean Time: $(format_time(report.benchmark.mean_time_ns)) ± $(format_time(report.benchmark.std_dev_ns))")
+        println(io, "- Samples: $(report.benchmark.samples)")
+        if report.benchmark.allocations > 0
+            println(io, "- Allocations: $(report.benchmark.allocations)")
+            println(io, "- Memory: $(format_bytes(report.benchmark.memory_bytes))")
+        end
         println(io, "")
     end
 

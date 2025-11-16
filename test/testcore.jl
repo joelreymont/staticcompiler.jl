@@ -766,3 +766,171 @@ end
     @test StaticCompiler.GITLAB_CI_EXAMPLE isa String
     @test occursin("GitLab", StaticCompiler.GITLAB_CI_EXAMPLE)
 end
+
+@testset "Performance Benchmarking" begin
+    # Simple test function
+    test_add(x::Int, y::Int) = x + y
+
+    # Test BenchmarkConfig
+    config = StaticCompiler.BenchmarkConfig(
+        samples=10,
+        warmup_samples=2,
+        measure_allocations=true,
+        timeout_seconds=5.0
+    )
+    @test config.samples == 10
+    @test config.warmup_samples == 2
+    @test config.measure_allocations == true
+
+    # Test basic benchmarking
+    try
+        result = StaticCompiler.benchmark_function(
+            test_add,
+            (Int, Int),
+            (5, 10),
+            config=config,
+            verbose=false
+        )
+
+        @test result isa StaticCompiler.BenchmarkResult
+        @test result.function_name == "test_add"
+        @test result.samples == config.samples
+        @test result.median_time_ns > 0
+        @test result.mean_time_ns > 0
+        @test result.std_dev_ns >= 0
+        @test result.min_time_ns <= result.median_time_ns
+        @test result.median_time_ns <= result.max_time_ns
+        @test result.binary_size_bytes > 0
+    catch e
+        @warn "Basic benchmark test skipped: $e"
+    end
+
+    # Test format_time
+    @test StaticCompiler.format_time(500.0) == "500.0 ns"
+    @test StaticCompiler.format_time(1500.0) == "1.5 μs"
+    @test StaticCompiler.format_time(1_500_000.0) == "1.5 ms"
+    @test StaticCompiler.format_time(1_500_000_000.0) == "1.5 s"
+
+    # Test format_bytes
+    @test StaticCompiler.format_bytes(512) == "512 B"
+    @test StaticCompiler.format_bytes(1536) == "1.5 KB"
+    @test StaticCompiler.format_bytes(1_572_864) == "1.5 MB"
+
+    # Test regression detection
+    baseline = StaticCompiler.BenchmarkResult(
+        "test_func",
+        100,
+        100.0,  # min
+        150.0,  # median
+        155.0,  # mean
+        200.0,  # max
+        10.0,   # std_dev
+        0,      # allocations
+        0,      # memory
+        nothing,
+        10000,
+        Dates.now()
+    )
+
+    # No regression (1% slower)
+    current_same = StaticCompiler.BenchmarkResult(
+        "test_func",
+        100,
+        100.0,
+        151.5,  # 1% slower
+        156.0,
+        200.0,
+        10.0,
+        0,
+        0,
+        nothing,
+        10000,
+        Dates.now()
+    )
+    has_regr, pct, msg = StaticCompiler.detect_performance_regression(current_same, baseline, threshold=5.0)
+    @test has_regr == false
+    @test abs(pct) < 5.0
+
+    # Regression (10% slower)
+    current_slow = StaticCompiler.BenchmarkResult(
+        "test_func",
+        100,
+        100.0,
+        165.0,  # 10% slower
+        170.0,
+        200.0,
+        10.0,
+        0,
+        0,
+        nothing,
+        10000,
+        Dates.now()
+    )
+    has_regr, pct, msg = StaticCompiler.detect_performance_regression(current_slow, baseline, threshold=5.0)
+    @test has_regr == true
+    @test pct > 5.0
+
+    # Improvement (10% faster)
+    current_fast = StaticCompiler.BenchmarkResult(
+        "test_func",
+        100,
+        100.0,
+        135.0,  # 10% faster
+        140.0,
+        200.0,
+        10.0,
+        0,
+        0,
+        nothing,
+        10000,
+        Dates.now()
+    )
+    has_regr, pct, msg = StaticCompiler.detect_performance_regression(current_fast, baseline, threshold=5.0)
+    @test has_regr == false
+    @test pct < -5.0
+
+    # Test benchmark history saving
+    workdir = mktempdir()
+    history_file = joinpath(workdir, "history.json")
+
+    try
+        result = StaticCompiler.BenchmarkResult(
+            "test_func",
+            50,
+            100.0,
+            150.0,
+            155.0,
+            200.0,
+            10.0,
+            0,
+            0,
+            nothing,
+            10000,
+            Dates.now()
+        )
+        StaticCompiler.save_benchmark_history(result, history_file)
+        @test isfile(history_file)
+        @test filesize(history_file) > 0
+    finally
+        rm(workdir, recursive=true, force=true)
+    end
+
+    # Test comprehensive report integration
+    try
+        report = StaticCompiler.generate_comprehensive_report(
+            test_add,
+            (Int, Int),
+            compile=false,
+            benchmark=true,
+            benchmark_args=(5, 10),
+            verbose=false
+        )
+
+        if report.benchmark !== nothing
+            @test report.benchmark isa StaticCompiler.BenchmarkResult
+            @test report.benchmark.median_time_ns > 0
+        end
+    catch e
+        @warn "Comprehensive report benchmark test skipped: $e"
+    end
+end

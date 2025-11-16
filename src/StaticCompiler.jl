@@ -44,6 +44,8 @@ export DependencyReport, analyze_dependency_bloat, suggest_nospecialize, estimat
 export ComprehensiveReport, generate_comprehensive_report, export_report_json, export_report_markdown, compare_reports
 export CIConfig, ci_compile_and_test, setup_ci_cache, ci_cache_stats, generate_ci_badge, ci_summary_table
 export detect_ci_environment, write_github_actions_summary, GITHUB_ACTIONS_EXAMPLE, GITLAB_CI_EXAMPLE
+export BenchmarkResult, BenchmarkConfig, benchmark_function, compare_optimization_profiles
+export detect_performance_regression, save_benchmark_history, format_time, format_bytes
 
 include("interpreter.jl")
 include("target.jl")
@@ -67,6 +69,7 @@ include("optimization_wizard.jl")
 include("dependency_analysis.jl")
 include("comprehensive_report.jl")
 include("ci_integration.jl")
+include("benchmarking.jl")
 
 fix_name(f::Function) = fix_name(string(nameof(f)))
 fix_name(s) = String(GPUCompiler.safe_name(s))

@@ -15,7 +15,8 @@ This guide covers the advanced static analysis, optimization, and compression fe
 9. [Dependency Bloat Analysis](#dependency-bloat-analysis)
 10. [Comprehensive Reporting](#comprehensive-reporting)
 11. [CI/CD Integration](#cicd-integration)
-12. [Complete Optimization Workflows](#complete-optimization-workflows)
+12. [Performance Benchmarking](#performance-benchmarking)
+13. [Complete Optimization Workflows](#complete-optimization-workflows)
 
 ---
 
@@ -1622,6 +1623,303 @@ else
 end
 
 exit_code = ci_compile_and_test(main, (), "dist", "app", config=config)
+```
+
+---
+
+## Performance Benchmarking
+
+Measure actual runtime performance of compiled binaries to validate optimizations and detect regressions.
+
+### Basic Benchmarking
+
+Run performance benchmarks on compiled functions:
+
+```julia
+using StaticCompiler
+
+function compute_sum(n::Int)
+    total = 0
+    for i in 1:n
+        total += i
+    end
+    return total
+end
+
+# Basic benchmark
+config = BenchmarkConfig(
+    samples = 100,           # Number of benchmark iterations
+    warmup_samples = 10,     # Warmup iterations
+    measure_allocations = true  # Track allocations
+)
+
+result = benchmark_function(compute_sum, (Int,), (1000,), config=config)
+
+# Output
+📊 Benchmark Results:
+   Median: 245.3 ns
+   Mean:   251.8 ns ± 15.2 ns
+   Range:  230.1 ns - 289.4 ns
+   Allocations: 0 / 100
+   Memory: 0 B
+```
+
+### BenchmarkResult Structure
+
+Benchmark results contain comprehensive statistics:
+
+| Field | Description |
+|-------|-------------|
+| `function_name` | Name of benchmarked function |
+| `samples` | Number of iterations run |
+| `min_time_ns` | Minimum execution time (nanoseconds) |
+| `median_time_ns` | Median execution time (nanoseconds) |
+| `mean_time_ns` | Mean execution time (nanoseconds) |
+| `max_time_ns` | Maximum execution time (nanoseconds) |
+| `std_dev_ns` | Standard deviation (nanoseconds) |
+| `allocations` | Number of allocating iterations |
+| `memory_bytes` | Total memory allocated |
+| `binary_size_bytes` | Size of compiled binary |
+
+### Comparing Optimization Profiles
+
+Benchmark different optimization profiles to find the best strategy:
+
+```julia
+config = BenchmarkConfig(
+    samples = 50,
+    profiles_to_test = [:SPEED, :SIZE, :AGGRESSIVE]
+)
+
+results = compare_optimization_profiles(
+    compute_sum,
+    (Int,),
+    (1000,),
+    config=config
+)
+
+# Output
+📊 Profile Comparison:
+   ======================================================================
+   Profile      Median Time    Binary Size    Speedup
+   ----------------------------------------------------------------------
+   SPEED         238.5 ns       15.8 KB        1.0x
+   AGGRESSIVE    242.1 ns       16.2 KB        0.98x
+   SIZE          251.2 ns       14.2 KB        0.95x
+   ======================================================================
+```
+
+### Performance Regression Detection
+
+Detect performance regressions by comparing benchmarks:
+
+```julia
+# Baseline benchmark
+baseline = benchmark_function(my_func, (Int,), (100,))
+
+# ... make changes ...
+
+# Current benchmark
+current = benchmark_function(my_func, (Int,), (100,))
+
+# Check for regression (5% threshold)
+has_regression, pct_change, message = detect_performance_regression(
+    current,
+    baseline,
+    threshold=5.0
+)
+
+if has_regression
+    @warn message
+    # Output: "Performance regression detected: 8.5% slower (150ns → 162.75ns)"
+end
+```
+
+### Historical Tracking
+
+Track performance over time by saving benchmark history:
+
+```julia
+# Run benchmark
+result = benchmark_function(my_func, (Int,), (100,))
+
+# Save to history file
+save_benchmark_history(result, "benchmarks/history.json")
+
+# Run this in CI to build a performance timeline
+```
+
+History file format:
+```json
+[
+  {
+    "function_name": "my_func",
+    "median_time_ns": 245.3,
+    "mean_time_ns": 251.8,
+    "samples": 100,
+    "timestamp": "2025-01-15T10:30:00"
+  },
+  ...
+]
+```
+
+### BenchmarkConfig Options
+
+Full configuration options:
+
+```julia
+config = BenchmarkConfig(
+    samples = 100,                  # Number of iterations (default: 100)
+    warmup_samples = 10,            # Warmup iterations (default: 10)
+    measure_allocations = true,     # Track allocations (default: true)
+    timeout_seconds = 10.0,         # Timeout per iteration (default: 10.0)
+    profiles_to_test = [:SPEED],    # Profiles to test (default: [:SPEED, :SIZE])
+    compare_baseline = true,        # Compare vs unoptimized (default: true)
+    check_regression = false,       # Auto-check regressions (default: false)
+    regression_threshold = 5.0      # Regression % threshold (default: 5.0)
+)
+```
+
+### Integration with Comprehensive Reports
+
+Include benchmarks in comprehensive reports:
+
+```julia
+report = generate_comprehensive_report(
+    my_func,
+    (Int,),
+    compile = true,
+    benchmark = true,
+    benchmark_args = (100,)  # Arguments for benchmarking
+)
+
+# Report includes:
+# - Static analysis (allocations, inlining, etc.)
+# - Compilation metrics
+# - Runtime benchmarks
+# - Combined performance score
+```
+
+### CI/CD Integration
+
+Use benchmarks in continuous integration:
+
+```julia
+# In your CI script
+config = CIConfig(
+    min_performance_score = 80.0,  # Require good performance
+    check_regression = true,        # Fail on regressions
+    generate_reports = true
+)
+
+# This will fail the build if performance degrades
+exit_code = ci_compile_and_test(
+    my_func,
+    (Int,),
+    "dist",
+    "my_app",
+    config=config
+)
+```
+
+### Best Practices
+
+**Use Median, Not Mean:**
+Median time is more robust to outliers than mean time.
+
+```julia
+# ✅ Good
+println("Performance: $(format_time(result.median_time_ns))")
+
+# ❌ Avoid
+println("Performance: $(format_time(result.mean_time_ns))")
+```
+
+**Adequate Sample Size:**
+Use enough samples for stable measurements:
+
+```julia
+# ✅ Good for production benchmarks
+config = BenchmarkConfig(samples=100, warmup_samples=10)
+
+# ⚠️  OK for quick checks
+config = BenchmarkConfig(samples=10, warmup_samples=2)
+```
+
+**Always Warmup:**
+Warmup iterations stabilize JIT compilation effects:
+
+```julia
+# ✅ Always include warmup
+config = BenchmarkConfig(warmup_samples=10)
+
+# ❌ Don't skip warmup
+config = BenchmarkConfig(warmup_samples=0)  # Unreliable results
+```
+
+**Track History in CI:**
+Build a performance timeline:
+
+```bash
+# In CI pipeline
+julia -e '
+using StaticCompiler
+result = benchmark_function(my_func, (Int,), (1000,))
+save_benchmark_history(result, "benchmarks/history.json")
+'
+
+# Commit history file to track trends
+git add benchmarks/history.json
+```
+
+### Use Cases
+
+**1. Validating Optimizations:**
+```julia
+# Before optimization
+baseline = benchmark_function(original_func, (Int,), (1000,))
+
+# After optimization
+optimized = benchmark_function(improved_func, (Int,), (1000,))
+
+speedup = baseline.median_time_ns / optimized.median_time_ns
+println("Speedup: $(round(speedup, digits=2))x")
+```
+
+**2. Choosing Between Implementations:**
+```julia
+# Benchmark multiple approaches
+impl1_time = benchmark_function(approach1, (Int,), (1000,)).median_time_ns
+impl2_time = benchmark_function(approach2, (Int,), (1000,)).median_time_ns
+
+best = impl1_time < impl2_time ? "approach1" : "approach2"
+println("Best implementation: $best")
+```
+
+**3. Performance Budgets:**
+```julia
+result = benchmark_function(my_func, (Int,), (1000,))
+
+BUDGET_NS = 500.0  # 500ns budget
+if result.median_time_ns > BUDGET_NS
+    error("Performance budget exceeded: $(result.median_time_ns)ns > $(BUDGET_NS)ns")
+end
+```
+
+**4. Continuous Performance Monitoring:**
+```julia
+# Run in CI
+result = benchmark_function(critical_path, types, args)
+
+if haskey(ENV, "BASELINE_MEDIAN_NS")
+    baseline_ns = parse(Float64, ENV["BASELINE_MEDIAN_NS"])
+    has_regr, pct, msg = detect_performance_regression(
+        result,
+        BenchmarkResult(...baseline_ns...),
+        threshold=5.0
+    )
+    has_regr && error(msg)
+end
 ```
 
 ---

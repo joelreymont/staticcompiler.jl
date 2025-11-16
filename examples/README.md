@@ -28,11 +28,16 @@ Simple examples for getting started:
 Examples showing performance features:
 
 - **`cache_demo.jl`** - Demonstrates 77x compilation speedup from caching
+- **`benchmark_demo.jl`** - Runtime performance benchmarking and profiling
 
 **Concepts covered:**
 - Compilation caching
 - Cache statistics
 - Performance measurement
+- Runtime benchmarking
+- Optimization profile comparison
+- Regression detection
+- Historical tracking
 
 ### Optimization Examples (`optimization/`)
 
@@ -108,6 +113,7 @@ julia examples/basic/fibonacci.jl
 
 # Performance examples
 julia examples/performance/cache_demo.jl
+julia examples/performance/benchmark_demo.jl
 
 # Optimization examples
 julia examples/optimization/size_optimization.jl
@@ -149,6 +155,58 @@ Second compilation (with cache)...
 📊 Results:
   Speedup: 77.9x faster
   Time saved: 10222ms
+```
+
+### benchmark_demo.jl
+```
+=== Performance Benchmarking Demo ===
+
+1️⃣  Basic function benchmark...
+   Function: sum_range
+   Samples: 50
+   Median time: 245.3 ns
+   Mean time: 251.8 ns ± 15.2 ns
+   Binary size: 14.2 KB
+
+2️⃣  Comparing optimization profiles...
+   Profile Comparison Results:
+   SPEED     : 238.5 ns (binary: 15.8 KB)
+   SIZE      : 251.2 ns (binary: 14.2 KB)
+
+   ✅ Fastest profile: SPEED
+
+3️⃣  Performance regression detection...
+   Creating baseline benchmark...
+   Creating current benchmark...
+   ✅ Performance unchanged: 1.2% difference
+
+4️⃣  Benchmark history tracking...
+   Collecting benchmark samples...
+   Sample 1: 243.7 ns
+   Sample 2: 248.1 ns
+   Sample 3: 245.9 ns
+
+   ✅ History saved to: /tmp/jl_xxx/benchmark_history.json
+   History file size: 2.1 KB
+
+5️⃣  Custom benchmark configurations...
+   Fast benchmark (10 samples):
+      Median: 247.2 ns
+
+   Thorough benchmark (100 samples):
+      Median: 245.8 ns
+      Std Dev: 12.3 ns
+
+   ✅ More samples provide more stable measurements
+
+📊 Benchmarking Features:
+   ✅ Accurate runtime performance measurement
+   ✅ Statistical analysis (median, mean, std dev)
+   ✅ Optimization profile comparison
+   ✅ Performance regression detection
+   ✅ Historical tracking and trending
+   ✅ Configurable sample counts and warmup
+   ✅ Allocation and memory tracking
 ```
 
 ### size_optimization.jl
