@@ -11,7 +11,9 @@ This guide covers the advanced static analysis, optimization, and compression fe
 5. [SIMD Vectorization Analysis](#simd-vectorization-analysis)
 6. [Security Analysis](#security-analysis)
 7. [Memory Layout Optimization](#memory-layout-optimization)
-8. [Complete Optimization Workflows](#complete-optimization-workflows)
+8. [Interactive Optimization Wizard](#interactive-optimization-wizard)
+9. [Dependency Bloat Analysis](#dependency-bloat-analysis)
+10. [Complete Optimization Workflows](#complete-optimization-workflows)
 
 ---
 
@@ -883,6 +885,321 @@ end
 
 ---
 
+## Interactive Optimization Wizard
+
+The Interactive Optimization Wizard guides users through selecting optimal compilation settings based on their requirements.
+
+### Basic Usage
+
+```julia
+using StaticCompiler
+
+function my_func(x::Int)
+    return x * x + 2
+end
+
+# Interactive mode (asks questions)
+config = optimization_wizard(my_func, (Int,))
+exe = compile_with_wizard_config(my_func, (Int,), config)
+```
+
+The wizard will ask about:
+- **Priority**: Size, speed, balanced, or compilation speed
+- **Target Platform**: Desktop, embedded, mobile, or server
+- **Deployment Stage**: Development, staging, or production
+- **Size Budget**: Optional maximum binary size
+- **UPX Compression**: Whether to compress
+- **Symbol Stripping**: Whether to strip debug symbols
+- **Advanced Options**: Custom compiler flags
+
+### Quick Wizard (Non-Interactive)
+
+For automated builds or CI/CD:
+
+```julia
+# Quick size optimization
+exe = quick_wizard(my_func, (Int,), priority=:size, path="/tmp", name="myapp")
+
+# Quick speed optimization
+exe = quick_wizard(my_func, (Int,), priority=:speed, path="/tmp", name="myapp")
+
+# Balanced optimization
+exe = quick_wizard(my_func, (Int,), priority=:balanced, path="/tmp", name="myapp")
+```
+
+### Manual Configuration
+
+Create custom wizard configurations programmatically:
+
+```julia
+config = WizardConfig(my_func, (Int,))
+config.priority = :size
+config.deployment = :production
+config.requires_strip = true
+config.requires_upx = true
+config.size_budget_kb = 50  # Fail if > 50 KB
+
+exe = compile_with_wizard_config(my_func, (Int,), config, path="/tmp", name="myapp")
+```
+
+### Size Budget Enforcement
+
+Set a size budget to ensure binaries don't exceed limits:
+
+```julia
+config = WizardConfig(my_func, (Int,))
+config.size_budget_kb = 100  # Warn if binary > 100 KB
+
+exe = compile_with_wizard_config(my_func, (Int,), config)
+
+# If binary exceeds budget, you'll get:
+# ⚠️  Binary size 125.3 KB exceeds budget of 100 KB
+# 💡 Suggestions to reduce size:
+#    • Enable UPX compression
+#    • Use PROFILE_SIZE instead
+#    • Remove unused dependencies
+```
+
+### Benefits
+
+✅ **Lower Barrier to Entry** - No need to understand all flags
+✅ **Guided Decisions** - Wizard asks relevant questions
+✅ **Optimal Settings** - Automatic profile selection
+✅ **Educational** - Learn about optimization options
+✅ **Reproducible** - Save wizard configs for reuse
+
+### Wizard Workflow
+
+1. **Analyzes** your function to identify issues
+2. **Asks questions** about your priorities and constraints
+3. **Recommends** an optimal optimization profile
+4. **Warns** about potential problems (e.g., allocations)
+5. **Compiles** with selected settings
+6. **Validates** against size budgets if specified
+
+### Use Cases
+
+**Development:**
+```julia
+exe = quick_wizard(my_func, (), priority=:compilation_speed)
+```
+
+**Production Deployment:**
+```julia
+config = optimization_wizard(my_func, (), interactive=true)
+# Wizard guides you through optimal production settings
+exe = compile_with_wizard_config(my_func, (), config)
+```
+
+**Embedded Systems:**
+```julia
+config = WizardConfig(my_func, ())
+config.priority = :size
+config.target_platform = :embedded
+config.size_budget_kb = 32  # Strict size limit
+config.requires_upx = true
+exe = compile_with_wizard_config(my_func, (), config)
+```
+
+---
+
+## Dependency Bloat Analysis
+
+Analyze function dependencies to identify bloat and minimize binary size.
+
+### Basic Dependency Analysis
+
+```julia
+using StaticCompiler
+
+function my_func(x::Int, y::Float64)
+    return x + Int(floor(y))
+end
+
+report = analyze_dependency_bloat(my_func, (Int, Float64))
+```
+
+**Output:**
+```
+DEPENDENCY ANALYSIS
+======================================================================
+
+📊 BLOAT SCORE: 28.5/100
+   (Lower is better)
+
+📦 OVERVIEW:
+   Total Functions: 23
+   Unique Modules: 3
+
+📚 MODULES DETECTED:
+   1. Base (~245 instructions)
+   2. Core (~89 instructions)
+   3. Math (~124 instructions)
+
+💡 OPTIMIZATION SUGGESTIONS:
+   1. Consider using @nospecialize on arguments that don't need type specialization
+   2. Avoid pulling in large stdlib modules for simple operations
+
+✅ Code appears well-optimized with minimal dependencies
+======================================================================
+```
+
+### Bloat Score Interpretation
+
+- **0-30**: Excellent (lean code, minimal dependencies)
+- **30-60**: Good (moderate dependencies, acceptable)
+- **60-100**: Poor (significant bloat, needs optimization)
+
+### Detecting Over-Specialization
+
+Find functions with too many type specializations:
+
+```julia
+function generic_add(x, y)  # No type annotations
+    return x + y
+end
+
+suggestions = suggest_nospecialize(generic_add, (Any, Any))
+# Suggestions:
+#   • Argument 1 has type Any - consider @nospecialize if not performance-critical
+#   • Argument 2 has type Any - consider @nospecialize if not performance-critical
+```
+
+**Fix:**
+```julia
+function generic_add(@nospecialize(x), @nospecialize(y))
+    return x + y
+end
+
+# Now generates fewer specializations
+```
+
+### Comparing Implementations
+
+Compare dependency impact of different approaches:
+
+```julia
+# Implementation 1: Using stdlib
+function impl1(x::Float64)
+    return sin(x) + cos(x)
+end
+
+# Implementation 2: Custom approximation
+function impl2(x::Float64)
+    return custom_sin(x) + custom_cos(x)
+end
+
+comparison = compare_dependency_impact(impl1, (Float64,), impl2, (Float64,))
+```
+
+**Output:**
+```
+DEPENDENCY COMPARISON
+======================================================================
+
+📊 Implementation 1:
+   Functions: 45
+   Modules: 5
+   Bloat Score: 48.5
+
+📊 Implementation 2:
+   Functions: 18
+   Modules: 2
+   Bloat Score: 22.0
+
+📈 Difference:
+   Functions: -27
+   Modules: -3
+   Bloat Score: -26.5
+
+✅ Implementation 2 is significantly leaner
+======================================================================
+```
+
+### Estimating Module Size Contribution
+
+```julia
+report = analyze_dependency_bloat(my_func, (Int,))
+
+# Check size contribution of a specific module
+base_size = estimate_dependency_size("Base", report)
+println("Base contributes ~$base_size instructions")
+```
+
+### Optimization Strategies
+
+**1. Use Concrete Types:**
+```julia
+# Bad: Abstract types pull in many specializations
+function bad(x::Real)
+    return x * 2
+end
+
+# Good: Concrete types
+function good(x::Float64)
+    return x * 2
+end
+```
+
+**2. Add @nospecialize:**
+```julia
+# For generic algorithms that don't need specialization
+function process(@nospecialize(data), threshold::Float64)
+    # Generic processing that works on any type
+    return filter(x -> x > threshold, data)
+end
+```
+
+**3. Avoid Heavy Stdlib:**
+```julia
+# Instead of LinearAlgebra for simple operations
+using LinearAlgebra
+result = dot(a, b)  # Pulls in entire LinearAlgebra
+
+# Use manual implementation
+result = sum(a[i] * b[i] for i in 1:length(a))
+```
+
+**4. Use StaticTools Alternatives:**
+```julia
+# Instead of Base.println
+using StaticTools
+@print_and_throw "error message"
+
+# Instead of regular Arrays
+arr = MallocArray{Int}(10)  # Static allocation
+```
+
+### Best Practices
+
+1. ✅ Run `analyze_dependency_bloat()` before optimizing
+2. ✅ Compare bloat scores when refactoring
+3. ✅ Use `@nospecialize` for generic arguments
+4. ✅ Prefer concrete types over abstract types
+5. ✅ Consider StaticTools.jl for stdlib alternatives
+6. ✅ Profile before removing optimizations
+7. ✅ Benchmark final binary to verify improvements
+
+### Common Issues and Solutions
+
+**High Bloat Score:**
+- Add `@nospecialize` to generic functions
+- Replace abstract types with concrete types
+- Use simpler implementations for basic operations
+- Avoid unnecessary stdlib imports
+
+**Too Many Specializations:**
+- Add `@nospecialize` annotation
+- Use union types instead of separate methods
+- Consider using Val{} for dispatch instead of types
+
+**Large Module Contributions:**
+- Implement custom versions of simple operations
+- Use StaticTools.jl alternatives
+- Avoid importing full modules for single functions
+
+---
+
 ## Complete Optimization Workflows
 
 ### Workflow 1: Maximum Size Reduction
@@ -1153,6 +1470,20 @@ StaticCompiler.jl now provides:
 - Cache efficiency analysis
 - Automated optimization suggestions
 - 10-50% memory savings possible
+
+✅ **Interactive Optimization Wizard**
+- Guided optimization decision-making
+- Automatic profile selection based on priorities
+- Size budget enforcement
+- Support for interactive and non-interactive modes
+- Platform-specific recommendations
+
+✅ **Dependency Bloat Analysis**
+- Identify module size contributions
+- Detect over-specialized functions
+- Compare implementation approaches
+- Bloat scoring (0-100, lower is better)
+- @nospecialize suggestions
 
 ✅ **Complete Workflows**
 - Size optimization

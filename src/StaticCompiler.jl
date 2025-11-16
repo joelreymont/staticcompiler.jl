@@ -39,6 +39,8 @@ export BuildConfig, save_config, load_config, compile_with_config, create_defaul
 export SIMDReport, analyze_simd
 export SecurityIssue, SecurityReport, analyze_security
 export MemoryLayoutReport, analyze_memory_layout, suggest_layout_optimization
+export WizardConfig, optimization_wizard, compile_with_wizard_config, quick_wizard
+export DependencyReport, analyze_dependency_bloat, suggest_nospecialize, estimate_dependency_size, compare_dependency_impact
 
 include("interpreter.jl")
 include("target.jl")
@@ -58,6 +60,8 @@ include("build_config.jl")
 include("simd_analysis.jl")
 include("security_analysis.jl")
 include("memory_layout.jl")
+include("optimization_wizard.jl")
+include("dependency_analysis.jl")
 
 fix_name(f::Function) = fix_name(string(nameof(f)))
 fix_name(s) = String(GPUCompiler.safe_name(s))

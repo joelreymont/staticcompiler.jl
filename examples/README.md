@@ -65,6 +65,21 @@ Advanced static analysis tools:
 - Cache efficiency analysis
 - Struct field reordering
 
+### Advanced Examples (`advanced/`)
+
+Sophisticated features for power users:
+
+- **`wizard_demo.jl`** - Interactive optimization wizard
+- **`dependency_demo.jl`** - Dependency bloat analysis and minimization
+
+**Concepts covered:**
+- Interactive optimization guidance
+- Automated profile selection
+- Dependency bloat detection
+- Over-specialization analysis
+- Implementation comparison
+- @nospecialize suggestions
+
 ## Running Examples
 
 Each example is standalone. Just run with Julia:
@@ -84,6 +99,10 @@ julia examples/optimization/build_config_demo.jl
 julia examples/analysis/simd_demo.jl
 julia examples/analysis/security_demo.jl
 julia examples/analysis/memory_layout_demo.jl
+
+# Advanced examples
+julia examples/advanced/wizard_demo.jl
+julia examples/advanced/dependency_demo.jl
 ```
 
 ## Expected Output
@@ -260,6 +279,83 @@ Second compilation (with cache)...
       Custom flags: -march=native
 ```
 
+### wizard_demo.jl
+```
+=== Optimization Wizard Demo ===
+
+1️⃣  Non-interactive wizard (using defaults):
+   Priority: balanced
+   Deployment: development
+   Profile: PROFILE_DEBUG
+
+2️⃣  Quick wizard (size-optimized):
+   ✅ Compiled successfully!
+   Size: 14.2 KB
+
+3️⃣  Quick wizard (speed-optimized):
+   ✅ Compiled successfully!
+   Size: 15.8 KB
+
+4️⃣  Manual wizard configuration:
+   Priority: balanced
+   Deployment: production
+   Strip: true
+   UPX: false
+
+📊 Wizard Benefits:
+   ✅ No need to understand all optimization flags
+   ✅ Guided decision-making process
+   ✅ Automatic profile selection
+   ✅ Size budget enforcement
+   ✅ Platform-specific optimizations
+```
+
+### dependency_demo.jl
+```
+=== Dependency Bloat Analysis Demo ===
+
+1️⃣  Simple arithmetic function:
+   Total Functions: 12
+   Unique Modules: 2
+   Bloat Score: 16.0/100
+
+2️⃣  Function using Float operations:
+   Total Functions: 28
+   Unique Modules: 3
+   Bloat Score: 32.5/100
+
+3️⃣  Analyzing function specialization:
+   Specialization Suggestions:
+      • Argument 1 has type Any - consider @nospecialize if not performance-critical
+      • Argument 2 has type Any - consider @nospecialize if not performance-critical
+
+4️⃣  Comparing implementations:
+   Implementation 1 (stdlib):
+      Functions: 28
+      Bloat Score: 32.5
+
+   Implementation 2 (custom):
+      Functions: 15
+      Bloat Score: 18.0
+
+   ✅ Custom implementation is leaner by 14.5 points
+
+5️⃣  Detailed dependency analysis:
+   📚 Modules Detected:
+      1. Base (~245 instructions)
+      2. Core (~89 instructions)
+      3. Math (~124 instructions)
+
+   💡 Optimization Suggestions:
+      1. Consider using @nospecialize on arguments that don't need type specialization
+      2. Avoid pulling in large stdlib modules for simple operations
+
+🎯 Bloat Score Guide:
+   0-30:   Excellent (lean code)
+   30-60:  Good (moderate dependencies)
+   60-100: Poor (significant bloat, optimize!)
+```
+
 ## Learning Path
 
 Recommended order for learning:
@@ -269,6 +365,7 @@ Recommended order for learning:
 3. Run `performance/cache_demo.jl` - see the performance benefits
 4. Explore `optimization/` examples - learn advanced techniques
 5. Try `analysis/` examples - understand code analysis and optimization opportunities
+6. Use `advanced/` examples - master interactive optimization and dependency management
 
 ## Requirements
 

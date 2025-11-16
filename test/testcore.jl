@@ -613,3 +613,57 @@ end
     @test opt_str isa String
     @test occursin("struct", opt_str) || occursin("No optimization", opt_str)
 end
+
+@testset "Optimization Wizard" begin
+    # Test wizard config creation
+    wizard_func(x::Int) = x * x + 2
+
+    # Test non-interactive mode (uses defaults)
+    config = StaticCompiler.optimization_wizard(wizard_func, (Int,), interactive=false)
+    @test config isa StaticCompiler.WizardConfig
+    @test config.priority == :balanced
+    @test config.target_platform == :desktop
+    @test config.deployment == :development
+
+    # Test quick_wizard
+    exe = StaticCompiler.quick_wizard(wizard_func, (Int,), priority=:size, path=workdir, name="wizard_test")
+    @test isfile(exe)
+
+    # Test recommended profile
+    profile_name = StaticCompiler.recommended_profile(config)
+    @test profile_name isa String
+    @test occursin("PROFILE", profile_name)
+end
+
+@testset "Dependency Bloat Analysis" begin
+    # Test dependency bloat analysis
+    bloat_func(x::Int, y::Float64) = x + Int(floor(y))
+
+    report = StaticCompiler.analyze_dependency_bloat(bloat_func, (Int, Float64), verbose=false)
+    @test report isa StaticCompiler.DependencyReport
+    @test report.total_functions >= 0
+    @test report.unique_modules isa Vector
+    @test report.bloat_score >= 0.0
+    @test report.bloat_score <= 100.0
+
+    # Test suggest_nospecialize
+    suggestions = StaticCompiler.suggest_nospecialize(bloat_func, (Int, Float64), verbose=false)
+    @test suggestions isa Vector
+
+    # Test estimate_dependency_size
+    if !isempty(report.unique_modules)
+        first_module = first(report.unique_modules)
+        size_est = StaticCompiler.estimate_dependency_size(first_module, report)
+        @test size_est >= 0
+    end
+
+    # Test compare_dependency_impact (simplified test)
+    impl1(x::Int) = x + 1
+    impl2(x::Int) = x * 2
+
+    comparison = StaticCompiler.compare_dependency_impact(impl1, (Int,), impl2, (Int,), verbose=false)
+    @test haskey(comparison, :report1)
+    @test haskey(comparison, :report2)
+    @test comparison.report1 isa StaticCompiler.DependencyReport
+    @test comparison.report2 isa StaticCompiler.DependencyReport
+end
