@@ -33,6 +33,8 @@ export @benchmark_compilation, benchmark_compile
 export load_benchmarks, show_benchmark_history, clear_benchmarks!, compare_benchmarks
 export AllocationProfile, InlineAnalysis, CallNode, BloatAnalysis, AdvancedAnalysisReport
 export analyze_allocations, analyze_inlining, build_call_graph, analyze_bloat, advanced_analysis
+export Recommendation, OptimizationRecommendations
+export recommend_optimizations, quick_optimize
 
 include("interpreter.jl")
 include("target.jl")
@@ -47,6 +49,7 @@ include("bundler.jl")
 include("optimization.jl")
 include("benchmark.jl")
 include("advanced_analysis.jl")
+include("recommendations.jl")
 
 fix_name(f::Function) = fix_name(string(nameof(f)))
 fix_name(s) = String(GPUCompiler.safe_name(s))

@@ -527,3 +527,18 @@ end
 
     # Note: Not testing actual LTO compilation as it requires specific toolchain setup
 end
+
+@testset "Automated Recommendations" begin
+    # Test recommendation system
+    good_func(x::Int) = x + 1
+
+    recs = StaticCompiler.recommend_optimizations(good_func, (Int,), verbose=false)
+    @test recs isa StaticCompiler.OptimizationRecommendations
+    @test recs.overall_score >= 0.0
+    @test recs.overall_score <= 100.0
+    @test recs.recommendations isa Vector
+
+    # Test quick_optimize
+    exe = StaticCompiler.quick_optimize(good_func, (Int,), workdir, "quick_test", verbose=false)
+    @test isfile(exe)
+end
