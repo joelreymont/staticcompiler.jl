@@ -67,9 +67,13 @@ export cross_compile, cross_compile_with_preset, compare_cross_targets, detect_h
 export interactive_optimize, quick_interactive_menu
 export CompilerConfig, ParallelConfig, load_config, save_config, apply_config
 export default_config, create_default_config_file, parse_toml_file
+export ProgressBar, IndeterminateProgress, MultiProgress
+export update!, set!, finish!, with_progress, progress_map, with_spinner
+export add_bar!, update_bar!
 
 include("constants.jl")
 include("logging.jl")
+include("progress.jl")
 include("error_handling.jl")
 include("json_utils.jl")
 include("interpreter.jl")
