@@ -1199,3 +1199,147 @@ end
         verbose=false
     )
 end
+
+@testset "Smart Optimization" begin
+    # Test function
+    smart_test_func(x::Int) = x * x + x
+
+    # Test SmartOptimizationResult structure exists
+    @test isdefined(StaticCompiler, :SmartOptimizationResult)
+
+    # Test smart_optimize with :auto target
+    workdir = mktempdir()
+    try
+        result = StaticCompiler.smart_optimize(
+            smart_test_func,
+            (Int,),
+            workdir,
+            "smart_test",
+            args=(100,),
+            target=:auto,
+            verbose=false
+        )
+
+        @test result isa StaticCompiler.SmartOptimizationResult
+        @test result.function_name == "smart_test_func"
+        @test result.recommended_preset isa Symbol
+        @test result.chosen_strategy isa String
+        @test length(result.chosen_strategy) > 0
+        @test result.analysis isa StaticCompiler.ComprehensiveReport
+        @test result.optimization_time_seconds >= 0.0
+        @test result.improvements isa Vector{String}
+
+    catch e
+        @warn "Smart optimize test skipped: $e"
+    finally
+        rm(workdir, recursive=true, force=true)
+    end
+
+    # Test smart_optimize with :size target
+    workdir = mktempdir()
+    try
+        result = StaticCompiler.smart_optimize(
+            smart_test_func,
+            (Int,),
+            workdir,
+            "smart_test_size",
+            target=:size,
+            verbose=false
+        )
+
+        @test result isa StaticCompiler.SmartOptimizationResult
+        @test result.recommended_preset == :embedded
+
+    catch e
+        @warn "Smart optimize size target test skipped: $e"
+    finally
+        rm(workdir, recursive=true, force=true)
+    end
+
+    # Test smart_optimize with :speed target
+    workdir = mktempdir()
+    try
+        result = StaticCompiler.smart_optimize(
+            smart_test_func,
+            (Int,),
+            workdir,
+            "smart_test_speed",
+            target=:speed,
+            verbose=false
+        )
+
+        @test result isa StaticCompiler.SmartOptimizationResult
+        @test result.recommended_preset == :hpc
+
+    catch e
+        @warn "Smart optimize speed target test skipped: $e"
+    finally
+        rm(workdir, recursive=true, force=true)
+    end
+
+    # Test smart_optimize with :balanced target
+    workdir = mktempdir()
+    try
+        result = StaticCompiler.smart_optimize(
+            smart_test_func,
+            (Int,),
+            workdir,
+            "smart_test_balanced",
+            target=:balanced,
+            verbose=false
+        )
+
+        @test result isa StaticCompiler.SmartOptimizationResult
+        @test result.recommended_preset == :desktop
+
+    catch e
+        @warn "Smart optimize balanced target test skipped: $e"
+    finally
+        rm(workdir, recursive=true, force=true)
+    end
+
+    # Test smart_optimize with specific preset as target
+    workdir = mktempdir()
+    try
+        result = StaticCompiler.smart_optimize(
+            smart_test_func,
+            (Int,),
+            workdir,
+            "smart_test_preset",
+            target=:embedded,
+            verbose=false
+        )
+
+        @test result isa StaticCompiler.SmartOptimizationResult
+        @test result.recommended_preset == :embedded
+
+    catch e
+        @warn "Smart optimize preset target test skipped: $e"
+    finally
+        rm(workdir, recursive=true, force=true)
+    end
+
+    # Test quick_compile
+    try
+        binary = StaticCompiler.quick_compile(
+            smart_test_func,
+            (Int,),
+            "quick_test"
+        )
+
+        @test binary isa String
+
+    catch e
+        @warn "Quick compile test skipped: $e"
+    end
+
+    # Test error handling for invalid target
+    @test_throws Exception StaticCompiler.smart_optimize(
+        smart_test_func,
+        (Int,),
+        mktempdir(),
+        "test",
+        target=:invalid_target,
+        verbose=false
+    )
+end

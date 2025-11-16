@@ -50,6 +50,7 @@ export ProfileData, PGOConfig, PGOResult, collect_profile, pgo_compile
 export save_profile_data, load_profile_data, compare_pgo_results
 export OptimizationPreset, get_preset, list_presets, compile_with_preset, compare_presets
 export PRESET_EMBEDDED, PRESET_SERVERLESS, PRESET_HPC, PRESET_DESKTOP, PRESET_DEVELOPMENT, PRESET_RELEASE
+export SmartOptimizationResult, smart_optimize, quick_compile
 
 include("interpreter.jl")
 include("target.jl")
@@ -76,6 +77,7 @@ include("ci_integration.jl")
 include("benchmarking.jl")
 include("pgo.jl")
 include("presets.jl")
+include("smart_optimize.jl")
 
 fix_name(f::Function) = fix_name(string(nameof(f)))
 fix_name(s) = String(GPUCompiler.safe_name(s))
