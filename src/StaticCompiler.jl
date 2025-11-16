@@ -41,6 +41,9 @@ export SecurityIssue, SecurityReport, analyze_security
 export MemoryLayoutReport, analyze_memory_layout, suggest_layout_optimization
 export WizardConfig, optimization_wizard, compile_with_wizard_config, quick_wizard
 export DependencyReport, analyze_dependency_bloat, suggest_nospecialize, estimate_dependency_size, compare_dependency_impact
+export ComprehensiveReport, generate_comprehensive_report, export_report_json, export_report_markdown, compare_reports
+export CIConfig, ci_compile_and_test, setup_ci_cache, ci_cache_stats, generate_ci_badge, ci_summary_table
+export detect_ci_environment, write_github_actions_summary, GITHUB_ACTIONS_EXAMPLE, GITLAB_CI_EXAMPLE
 
 include("interpreter.jl")
 include("target.jl")
@@ -62,6 +65,8 @@ include("security_analysis.jl")
 include("memory_layout.jl")
 include("optimization_wizard.jl")
 include("dependency_analysis.jl")
+include("comprehensive_report.jl")
+include("ci_integration.jl")
 
 fix_name(f::Function) = fix_name(string(nameof(f)))
 fix_name(s) = String(GPUCompiler.safe_name(s))

@@ -71,6 +71,7 @@ Sophisticated features for power users:
 
 - **`wizard_demo.jl`** - Interactive optimization wizard
 - **`dependency_demo.jl`** - Dependency bloat analysis and minimization
+- **`comprehensive_report_demo.jl`** - Complete analysis reports and exports
 
 **Concepts covered:**
 - Interactive optimization guidance
@@ -79,6 +80,23 @@ Sophisticated features for power users:
 - Over-specialization analysis
 - Implementation comparison
 - @nospecialize suggestions
+- Comprehensive reporting
+- Report export (JSON, Markdown)
+- Historical tracking
+
+### CI/CD Integration (`ci/`)
+
+Continuous integration and deployment examples:
+
+- **`github_actions_example.jl`** - GitHub Actions integration
+
+**Concepts covered:**
+- CI/CD configuration
+- Automated compilation testing
+- Report generation in CI
+- Size and performance budgets
+- Badge generation
+- Multi-format report export
 
 ## Running Examples
 
@@ -103,6 +121,10 @@ julia examples/analysis/memory_layout_demo.jl
 # Advanced examples
 julia examples/advanced/wizard_demo.jl
 julia examples/advanced/dependency_demo.jl
+julia examples/advanced/comprehensive_report_demo.jl
+
+# CI/CD integration
+julia examples/ci/github_actions_example.jl
 ```
 
 ## Expected Output
