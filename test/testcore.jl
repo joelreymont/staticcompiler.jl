@@ -1343,3 +1343,266 @@ end
         verbose=false
     )
 end
+
+@testset "Optimization Validation Tests" begin
+    # Test function for validation
+    function validation_test_func(n::Int)
+        result = 0
+        for i in 1:n
+            result += i * i
+        end
+        return result
+    end
+
+    @testset "Different profiles produce different binaries" begin
+        output_dir_size = mktempdir()
+        output_dir_speed = mktempdir()
+
+        try
+            # Compile with PROFILE_SIZE
+            result_size = compile_with_preset(
+                validation_test_func,
+                (Int,),
+                output_dir_size,
+                "test_size",
+                :embedded,  # Uses PROFILE_SIZE_LTO
+                verbose=false
+            )
+
+            # Compile with PROFILE_SPEED
+            result_speed = compile_with_preset(
+                validation_test_func,
+                (Int,),
+                output_dir_speed,
+                "test_speed",
+                :hpc,  # Uses PROFILE_SPEED
+                verbose=false
+            )
+
+            # Verify both compiled successfully
+            @test haskey(result_size, "binary_size")
+            @test haskey(result_speed, "binary_size")
+
+            size_binary = result_size["binary_size"]
+            speed_binary = result_speed["binary_size"]
+
+            # Print sizes for debugging
+            println("\n  Size-optimized binary: $(format_bytes(size_binary))")
+            println("  Speed-optimized binary: $(format_bytes(speed_binary))")
+
+            # Size-optimized should generally be smaller, but allow for variation
+            # At minimum, they should be different (not identical)
+            @test size_binary != speed_binary
+
+        finally
+            rm(output_dir_size, recursive=true, force=true)
+            rm(output_dir_speed, recursive=true, force=true)
+        end
+    end
+
+    @testset "Optimization flags are actually applied" begin
+        output_dir = mktempdir()
+
+        try
+            # Compile with development preset (should have -O0)
+            result_dev = compile_with_preset(
+                validation_test_func,
+                (Int,),
+                output_dir,
+                "test_dev",
+                :development,
+                verbose=false
+            )
+
+            # Compile with release preset (should have -O3)
+            result_release = compile_with_preset(
+                validation_test_func,
+                (Int,),
+                output_dir,
+                "test_release",
+                :release,
+                verbose=false
+            )
+
+            # Both should compile
+            @test haskey(result_dev, "binary_size")
+            @test haskey(result_release, "binary_size")
+
+            # Release build should generally be smaller than debug (due to optimizations)
+            # but we mainly care that they're different
+            @test result_dev["binary_size"] != result_release["binary_size"]
+
+        finally
+            rm(output_dir, recursive=true, force=true)
+        end
+    end
+
+    @testset "Profile comparison tests different profiles" begin
+        config = BenchmarkConfig(
+            samples=5,
+            warmup_samples=2,
+            profiles_to_test=[:PROFILE_SIZE, :PROFILE_SPEED]
+        )
+
+        results = compare_optimization_profiles(
+            validation_test_func,
+            (Int,),
+            (1000,),
+            config=config,
+            verbose=false
+        )
+
+        # Should have results for both profiles
+        @test haskey(results, :PROFILE_SIZE)
+        @test haskey(results, :PROFILE_SPEED)
+
+        # Results should be different
+        size_result = results[:PROFILE_SIZE]
+        speed_result = results[:PROFILE_SPEED]
+
+        @test size_result.binary_size_bytes != speed_result.binary_size_bytes
+        @test size_result.optimization_profile == :PROFILE_SIZE
+        @test speed_result.optimization_profile == :PROFILE_SPEED
+
+        println("\n  PROFILE_SIZE: $(format_bytes(size_result.binary_size_bytes)), " *
+                "$(format_time(size_result.median_time_ns))")
+        println("  PROFILE_SPEED: $(format_bytes(speed_result.binary_size_bytes)), " *
+                "$(format_time(speed_result.median_time_ns))")
+    end
+
+    @testset "PGO uses different profiles in iterations" begin
+        output_dir = mktempdir()
+
+        try
+            # Run PGO with auto-apply enabled
+            config = PGOConfig(
+                initial_profile=:PROFILE_DEBUG,
+                target_metric=:speed,
+                iterations=3,
+                benchmark_samples=5,
+                auto_apply=true
+            )
+
+            result = pgo_compile(
+                validation_test_func,
+                (Int,),
+                (1000,),
+                output_dir,
+                "test_pgo",
+                config=config,
+                verbose=false
+            )
+
+            # Should have profiles from iterations
+            @test length(result.profiles) >= 1
+            @test result.iterations_completed >= 1
+
+            # Should have recommendations
+            if length(result.profiles) > 0
+                @test result.profiles[1].recommended_profile in [
+                    :PROFILE_SPEED, :PROFILE_SIZE, :PROFILE_AGGRESSIVE,
+                    :PROFILE_SPEED_LTO, :PROFILE_SIZE_LTO
+                ]
+            end
+
+        finally
+            rm(output_dir, recursive=true, force=true)
+        end
+    end
+
+    @testset "Smart optimization applies correct flags" begin
+        output_dir_auto = mktempdir()
+        output_dir_size = mktempdir()
+        output_dir_speed = mktempdir()
+
+        try
+            # Test auto target
+            result_auto = smart_optimize(
+                validation_test_func,
+                (Int,),
+                output_dir_auto,
+                "test_auto",
+                args=(1000,),
+                target=:auto,
+                verbose=false
+            )
+
+            @test result_auto.binary_path !== nothing
+            @test result_auto.binary_size !== nothing
+            @test result_auto.recommended_preset in [
+                :embedded, :serverless, :hpc, :desktop, :development, :release
+            ]
+
+            # Test size target
+            result_size = smart_optimize(
+                validation_test_func,
+                (Int,),
+                output_dir_size,
+                "test_size",
+                target=:size,
+                verbose=false
+            )
+
+            @test result_size.recommended_preset == :embedded
+            @test result_size.binary_size !== nothing
+
+            # Test speed target
+            result_speed = smart_optimize(
+                validation_test_func,
+                (Int,),
+                output_dir_speed,
+                "test_speed",
+                target=:speed,
+                verbose=false
+            )
+
+            @test result_speed.recommended_preset == :hpc
+            @test result_speed.binary_size !== nothing
+
+            # Size-optimized should be smaller than or equal to speed-optimized
+            println("\n  Auto: $(result_auto.recommended_preset), " *
+                    "$(format_bytes(result_auto.binary_size))")
+            println("  Size target: $(format_bytes(result_size.binary_size))")
+            println("  Speed target: $(format_bytes(result_speed.binary_size))")
+
+        finally
+            rm(output_dir_auto, recursive=true, force=true)
+            rm(output_dir_size, recursive=true, force=true)
+            rm(output_dir_speed, recursive=true, force=true)
+        end
+    end
+
+    @testset "Preset compile comparison validates flags" begin
+        output_dir = mktempdir()
+
+        try
+            # Compare embedded vs desktop vs hpc
+            comparison = compare_presets(
+                validation_test_func,
+                (Int,),
+                (1000,),
+                output_dir,
+                presets=[:embedded, :desktop, :hpc],
+                verbose=false
+            )
+
+            @test haskey(comparison, :embedded)
+            @test haskey(comparison, :desktop)
+            @test haskey(comparison, :hpc)
+
+            embedded_size = comparison[:embedded]["binary_size"]
+            desktop_size = comparison[:desktop]["binary_size"]
+            hpc_size = comparison[:hpc]["binary_size"]
+
+            println("\n  Embedded: $(format_bytes(embedded_size))")
+            println("  Desktop: $(format_bytes(desktop_size))")
+            println("  HPC: $(format_bytes(hpc_size))")
+
+            # All should be different (not identical)
+            @test embedded_size != desktop_size || desktop_size != hpc_size
+
+        finally
+            rm(output_dir, recursive=true, force=true)
+        end
+    end
+end

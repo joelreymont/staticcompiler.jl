@@ -248,6 +248,35 @@ function get_optimization_flags(profile::OptimizationProfile)
 end
 
 """
+    get_profile_by_symbol(profile_symbol::Symbol)
+
+Get OptimizationProfile from symbol name.
+
+# Example
+```julia
+profile = get_profile_by_symbol(:PROFILE_SPEED)
+```
+"""
+function get_profile_by_symbol(profile_symbol::Symbol)
+    if profile_symbol == :PROFILE_SIZE
+        return PROFILE_SIZE
+    elseif profile_symbol == :PROFILE_SPEED
+        return PROFILE_SPEED
+    elseif profile_symbol == :PROFILE_AGGRESSIVE
+        return PROFILE_AGGRESSIVE
+    elseif profile_symbol == :PROFILE_DEBUG
+        return PROFILE_DEBUG
+    elseif profile_symbol == :PROFILE_SIZE_LTO
+        return PROFILE_SIZE_LTO
+    elseif profile_symbol == :PROFILE_SPEED_LTO
+        return PROFILE_SPEED_LTO
+    else
+        @warn "Unknown profile symbol: $profile_symbol, using PROFILE_SPEED"
+        return PROFILE_SPEED
+    end
+end
+
+"""
     compile_executable_optimized(f, types, path, name;
                                   profile=PROFILE_SIZE, kwargs...)
 

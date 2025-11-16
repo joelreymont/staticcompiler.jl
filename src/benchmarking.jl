@@ -240,9 +240,11 @@ function compare_optimization_profiles(f, types, args; config=BenchmarkConfig(),
 
         try
             # Compile with specific profile
-            # Note: We would need to integrate with the optimization profiles system
-            # For now, we'll compile with default settings
-            compile_shlib(f, types, binary_path, name=binary_name)
+            profile_obj = get_profile_by_symbol(profile)
+            opt_flags = get_optimization_flags(profile_obj)
+            cflags = Cmd(opt_flags)
+
+            compile_shlib(f, types, binary_path, name=binary_name, cflags=cflags)
 
             if !isfile(binary_path * ".so")
                 verbose && println("  ⚠️  Compilation failed for $profile\n")

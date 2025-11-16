@@ -485,9 +485,21 @@ function compile_with_preset(f, types, output_path, name, preset_name::Symbol; a
         println("   Strip: $(preset.strip_binary)")
     end
 
+    # Get optimization flags from preset's profile
+    profile = get_profile_by_symbol(preset.optimization_profile)
+    opt_flags = get_optimization_flags(profile)
+
+    # Override optimization flags with build config if available
+    if preset.build_config !== nothing && !isempty(preset.build_config.optimization_flags)
+        opt_flags = preset.build_config.optimization_flags
+    end
+
+    cflags = Cmd(opt_flags)
+
     binary_path = compile_executable(
         f, types, output_path, name,
-        strip_binary=preset.strip_binary
+        strip_binary=preset.strip_binary,
+        cflags=cflags
     )
 
     if isfile(binary_path)

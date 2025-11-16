@@ -27,7 +27,7 @@ export analyze_dependencies, create_bundle, BundleConfig
 export OptimizationProfile, OptimizationLevel
 export PROFILE_SIZE, PROFILE_SPEED, PROFILE_AGGRESSIVE, PROFILE_DEBUG
 export PROFILE_SIZE_LTO, PROFILE_SPEED_LTO
-export optimize_binary, compile_executable_optimized, get_optimization_flags
+export optimize_binary, compile_executable_optimized, get_optimization_flags, get_profile_by_symbol
 export compress_with_upx, test_upx_available
 export @benchmark_compilation, benchmark_compile
 export load_benchmarks, show_benchmark_history, clear_benchmarks!, compare_benchmarks

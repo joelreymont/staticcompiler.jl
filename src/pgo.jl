@@ -221,10 +221,14 @@ function pgo_compile(f, types, args, output_path, name; config=PGOConfig(), verb
             println("  Using profile: $current_profile")
         end
 
-        # Compile (we would apply the profile here in a real implementation)
-        # For now, just compile normally
+        # Compile with current optimization profile
         try
-            compile_executable(f, types, output_path, name)
+            # Get optimization flags for current profile
+            profile_obj = get_profile_by_symbol(current_profile)
+            opt_flags = get_optimization_flags(profile_obj)
+            cflags = Cmd(opt_flags)
+
+            compile_executable(f, types, output_path, name, cflags=cflags)
         catch e
             if verbose
                 println("  Compilation failed: $e")
