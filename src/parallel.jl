@@ -46,13 +46,13 @@ function parallel_compare_presets(f, types, args, output_dir;
                                  cache_config=ResultCacheConfig(),
                                  verbose=true)
     if verbose
-        println("\n" * "="^70)
-        println("PARALLEL PRESET COMPARISON")
-        println("="^70)
-        println("Presets: $(length(presets))")
-        println("Max concurrent: $max_concurrent")
-        println("Caching: $use_cache")
-        println()
+        log_section("PARALLEL PRESET COMPARISON") do
+            log_info("Configuration", Dict(
+                "presets" => length(presets),
+                "max_concurrent" => max_concurrent,
+                "caching" => use_cache
+            ))
+        end
     end
 
     results = Dict{Symbol, Any}()
@@ -65,7 +65,7 @@ function parallel_compare_presets(f, types, args, output_dir;
         batch = presets[batch_start:batch_end]
 
         if verbose
-            println("Processing batch $(div(batch_start - 1, max_concurrent) + 1): $(batch)")
+            log_info("Processing batch $(div(batch_start - 1, max_concurrent) + 1): $(batch)")
         end
 
         # Create tasks for each preset in batch
@@ -79,7 +79,7 @@ function parallel_compare_presets(f, types, args, output_dir;
 
                 if cached !== nothing
                     if verbose
-                        println("  ✓ $preset_name (from cache)")
+                        log_info("$preset_name (from cache)")
                     end
                     results[preset_name] = cached
                     completed += 1
@@ -135,53 +135,39 @@ function parallel_compare_presets(f, types, args, output_dir;
                 completed += 1
 
                 if verbose
-                    println("  ✓ $name ($completed/$total)")
+                    log_progress("Preset compilation", completed, total)
                 end
             end
-        end
-
-        if verbose
-            println()
         end
     end
 
     # Print comparison table (reuse from sequential version)
     if verbose
-        println("="^70)
-        println("COMPARISON RESULTS")
-        println("="^70)
-        println()
+        log_section("COMPARISON RESULTS") do
+            for preset_name in presets
+                if haskey(results, preset_name)
+                    result = results[preset_name]
 
-        println(rpad("Preset", 15) * " | " *
-                rpad("Binary Size", 12) * " | " *
-                rpad("Performance", 12) * " | " *
-                rpad("Overall Score", 13))
-        println("-"^70)
+                    size_str = haskey(result, "binary_size") ?
+                              format_bytes(result["binary_size"]) :
+                              "N/A"
 
-        for preset_name in presets
-            if haskey(results, preset_name)
-                result = results[preset_name]
+                    perf_str = haskey(result, "benchmark") ?
+                              format_time(result["benchmark"]["median_time_ns"]) :
+                              "N/A"
 
-                size_str = haskey(result, "binary_size") ?
-                          format_bytes(result["binary_size"]) :
-                          "N/A"
+                    score_str = haskey(result, "scores") ?
+                               "$(round(result["scores"]["overall"], digits=1))" :
+                               "N/A"
 
-                perf_str = haskey(result, "benchmark") ?
-                          format_time(result["benchmark"]["median_time_ns"]) :
-                          "N/A"
-
-                score_str = haskey(result, "scores") ?
-                           "$(round(result["scores"]["overall"], digits=1))" :
-                           "N/A"
-
-                println(rpad(string(preset_name), 15) * " | " *
-                       rpad(size_str, 12) * " | " *
-                       rpad(perf_str, 12) * " | " *
-                       rpad(score_str, 13))
+                    log_info("$(preset_name)", Dict(
+                        "binary_size" => size_str,
+                        "performance" => perf_str,
+                        "overall_score" => score_str
+                    ))
+                end
             end
         end
-
-        println()
     end
 
     return results
@@ -225,10 +211,12 @@ function parallel_benchmark_profiles(f, types, args;
                                     config=BenchmarkConfig(),
                                     verbose=true)
     if verbose
-        println("\n=== Parallel Profile Benchmarking ===")
-        println("Profiles: $(length(profiles))")
-        println("Max concurrent: $max_concurrent")
-        println()
+        log_section("Parallel Profile Benchmarking") do
+            log_info("Configuration", Dict(
+                "profiles" => length(profiles),
+                "max_concurrent" => max_concurrent
+            ))
+        end
     end
 
     results = Dict{Symbol, BenchmarkResult}()
@@ -321,13 +309,16 @@ function parallel_benchmark_profiles(f, types, args;
             (name, result, error) = fetch(task)
 
             if error !== nothing
-                verbose && println("  ⚠️  $name failed: $error")
+                verbose && log_warn("$name failed: $error")
                 continue
             end
 
             if result !== nothing
                 results[name] = result
-                verbose && println("  ✓ $name: $(format_bytes(result.binary_size_bytes)), $(format_time(result.median_time_ns))")
+                verbose && log_info("$name", Dict(
+                    "binary_size" => format_bytes(result.binary_size_bytes),
+                    "median_time" => format_time(result.median_time_ns)
+                ))
             end
         end
     end

@@ -1904,3 +1904,369 @@ end
         )
     end
 end
+
+@testset "Logging System Tests" begin
+    @testset "LogConfig creation" begin
+        # Default config
+        config = LogConfig()
+        @test config.level == INFO
+        @test config.log_to_stdout == true
+        @test config.log_to_file == false
+        @test config.use_colors == true
+
+        # Custom config
+        config2 = LogConfig(
+            level=DEBUG,
+            log_to_file=true,
+            use_colors=false
+        )
+        @test config2.level == DEBUG
+        @test config2.log_to_file == true
+        @test config2.use_colors == false
+    end
+
+    @testset "Log level filtering" begin
+        tmpfile = tempname() * ".log"
+
+        try
+            config = LogConfig(
+                level=WARN,
+                log_to_file=true,
+                log_file=tmpfile,
+                log_to_stdout=false
+            )
+            set_log_config(config)
+
+            # These should not be logged (below WARN level)
+            log_debug("debug message")
+            log_info("info message")
+
+            # These should be logged
+            log_warn("warning message")
+            log_error("error message")
+
+            # Check file contents
+            @test isfile(tmpfile)
+            contents = read(tmpfile, String)
+            @test occursin("warning message", contents)
+            @test occursin("error message", contents)
+            @test !occursin("debug message", contents)
+            @test !occursin("info message", contents)
+
+        finally
+            rm(tmpfile, force=true)
+            set_log_config(LogConfig())  # Reset
+        end
+    end
+
+    @testset "Log formatting" begin
+        # Plain text format
+        config = LogConfig(json_format=false)
+        msg = format_log_message(INFO, "test message", Dict("key" => "value"), config=config)
+        @test occursin("INFO", msg)
+        @test occursin("test message", msg)
+        @test occursin("key=value", msg)
+
+        # JSON format
+        config_json = LogConfig(json_format=true)
+        msg_json = format_log_message(INFO, "test message", Dict("key" => "value"), config=config_json)
+        @test occursin("\"level\":\"INFO\"", replace(msg_json, " " => ""))
+        @test occursin("\"message\":\"test message\"", replace(msg_json, " " => ""))
+    end
+
+    @testset "Log file operations" begin
+        tmpfile = tempname() * ".log"
+
+        try
+            config = LogConfig(
+                log_to_file=true,
+                log_file=tmpfile,
+                log_to_stdout=false
+            )
+
+            # Write logs
+            set_log_config(config)
+            log_info("message 1")
+            log_info("message 2")
+
+            @test isfile(tmpfile)
+            contents = read(tmpfile, String)
+            @test occursin("message 1", contents)
+            @test occursin("message 2", contents)
+
+            # Clear log file
+            cleared = clear_log_file(config)
+            @test cleared == true
+            @test !isfile(tmpfile)
+
+        finally
+            rm(tmpfile, force=true)
+            set_log_config(LogConfig())
+        end
+    end
+
+    @testset "Temporary logging" begin
+        original_level = get_log_config().level
+
+        result = with_logging(LogConfig(level=DEBUG)) do
+            @test get_log_config().level == DEBUG
+            return 42
+        end
+
+        @test result == 42
+        @test get_log_config().level == original_level
+    end
+
+    @testset "Log sections" begin
+        output = IOBuffer()
+        config = LogConfig(
+            log_to_file=false,
+            log_to_stdout=true
+        )
+        set_log_config(config)
+
+        result = log_section("Test Section") do
+            sleep(0.1)
+            return "completed"
+        end
+
+        @test result == "completed"
+        set_log_config(LogConfig())
+    end
+
+    @testset "Log progress" begin
+        # Just ensure it doesn't error
+        for i in 1:5
+            log_progress("Processing", i, 5)
+        end
+        @test true  # If we got here, no errors
+    end
+end
+
+@testset "Cross-Compilation Tests" begin
+    @testset "CrossTarget structure" begin
+        target = get_cross_target(:arm64_linux)
+        @test target.name == :arm64_linux
+        @test target.arch == "aarch64"
+        @test target.os == "linux"
+        @test target.triple == "aarch64-unknown-linux-gnu"
+    end
+
+    @testset "List cross targets" begin
+        targets = list_cross_targets()
+        @test length(targets) >= 10
+        @test any(t -> t[1] == :arm64_linux, targets)
+        @test any(t -> t[1] == :wasm32, targets)
+        @test any(t -> t[1] == :embedded_arm, targets)
+    end
+
+    @testset "Get cross target by name" begin
+        # Valid targets
+        @test get_cross_target(:arm64_linux).arch == "aarch64"
+        @test get_cross_target(:wasm32).arch == "wasm32"
+        @test get_cross_target(:riscv64_linux).arch == "riscv64"
+
+        # Invalid target
+        @test_throws ErrorException get_cross_target(:invalid_target)
+    end
+
+    @testset "Detect host target" begin
+        host = detect_host_target()
+        @test host.arch in ["x86_64", "aarch64", "i686"]
+        @test host.os in ["linux", "darwin", "windows"]
+        @test !isempty(host.triple)
+    end
+
+    @testset "Target descriptions" begin
+        targets = list_cross_targets()
+        for (name, desc) in targets
+            @test !isempty(desc)
+            @test isa(name, Symbol)
+            @test isa(desc, String)
+        end
+    end
+
+    @testset "All predefined targets accessible" begin
+        expected_targets = [
+            :arm64_linux, :arm64_linux_musl, :arm_linux,
+            :riscv64_linux, :x86_64_windows, :x86_64_macos,
+            :arm64_macos, :wasm32, :embedded_arm, :embedded_riscv
+        ]
+
+        for target_name in expected_targets
+            target = get_cross_target(target_name)
+            @test target.name == target_name
+            @test !isempty(target.description)
+        end
+    end
+end
+
+@testset "Parallel Processing Tests" begin
+    @testset "Optimal concurrency detection" begin
+        optimal = get_optimal_concurrency()
+        @test optimal >= 2
+        @test optimal <= 8
+        @test optimal <= Sys.CPU_THREADS
+    end
+
+    @testset "Concurrency bounds" begin
+        optimal = get_optimal_concurrency()
+        # Should use 75% of cores
+        expected = Int(ceil(Sys.CPU_THREADS * 0.75))
+        clamped = max(2, min(8, expected))
+        @test optimal == clamped
+    end
+end
+
+@testset "Configuration Integration Tests" begin
+    @testset "LogConfig with all options" begin
+        config = LogConfig(
+            level=ERROR,
+            log_to_file=true,
+            log_file="/tmp/test.log",
+            log_to_stdout=false,
+            use_colors=false,
+            timestamp_format="HH:MM:SS",
+            include_source=true,
+            json_format=true
+        )
+
+        @test config.level == ERROR
+        @test config.log_to_file == true
+        @test config.log_to_stdout == false
+        @test config.use_colors == false
+        @test config.json_format == true
+    end
+
+    @testset "Multiple log configs" begin
+        config1 = LogConfig(level=DEBUG)
+        config2 = LogConfig(level=ERROR)
+
+        set_log_config(config1)
+        @test get_log_config().level == DEBUG
+
+        set_log_config(config2)
+        @test get_log_config().level == ERROR
+    end
+end
+
+@testset "Integration Tests" begin
+    @testset "Logging with error handling" begin
+        tmpfile = tempname() * ".log"
+
+        try
+            config = LogConfig(
+                log_to_file=true,
+                log_file=tmpfile,
+                log_to_stdout=false
+            )
+            set_log_config(config)
+
+            cleanup_called = false
+
+            try
+                with_cleanup(
+                    () -> begin
+                        log_info("Starting operation")
+                        error("Test error")
+                    end,
+                    () -> begin
+                        cleanup_called = true
+                        log_info("Cleanup executed")
+                    end
+                )
+            catch
+                # Expected
+            end
+
+            @test cleanup_called
+            @test isfile(tmpfile)
+            contents = read(tmpfile, String)
+            @test occursin("Starting operation", contents)
+            @test occursin("Cleanup executed", contents)
+
+        finally
+            rm(tmpfile, force=true)
+            set_log_config(LogConfig())
+        end
+    end
+
+    @testset "Cross-compilation with logging" begin
+        set_log_config(LogConfig(level=INFO))
+
+        target = get_cross_target(:arm64_linux)
+        @test target.arch == "aarch64"
+
+        # Just verify the integration works
+        @test !isempty(target.description)
+
+        set_log_config(LogConfig())
+    end
+end
+
+@testset "Edge Cases and Error Handling" begin
+    @testset "Log to non-existent directory" begin
+        tmpdir = tempname()
+        logfile = joinpath(tmpdir, "subdir", "test.log")
+
+        try
+            config = LogConfig(
+                log_to_file=true,
+                log_file=logfile,
+                log_to_stdout=false
+            )
+            set_log_config(config)
+
+            log_info("Test message")
+
+            # Should create directory automatically
+            @test isfile(logfile)
+
+        finally
+            rm(tmpdir, recursive=true, force=true)
+            set_log_config(LogConfig())
+        end
+    end
+
+    @testset "Invalid log file permissions" begin
+        # Test graceful degradation when can't write log file
+        config = LogConfig(
+            log_to_file=true,
+            log_file="/invalid/path/file.log",
+            log_to_stdout=false
+        )
+        set_log_config(config)
+
+        # Should not throw, just warn to stderr
+        log_info("Test message")
+
+        set_log_config(LogConfig())
+        @test true  # If we got here, graceful degradation worked
+    end
+
+    @testset "SILENT level suppresses everything" begin
+        tmpfile = tempname() * ".log"
+
+        try
+            config = LogConfig(
+                level=SILENT,
+                log_to_file=true,
+                log_file=tmpfile,
+                log_to_stdout=false
+            )
+            set_log_config(config)
+
+            log_debug("debug")
+            log_info("info")
+            log_warn("warn")
+            log_error("error")
+
+            # Nothing should be written
+            @test !isfile(tmpfile) || filesize(tmpfile) == 0
+
+        finally
+            rm(tmpfile, force=true)
+            set_log_config(LogConfig())
+        end
+    end
+end

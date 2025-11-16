@@ -65,19 +65,19 @@ function smart_optimize(f, types, output_path, name; args=nothing, target=:auto,
     start_time = time()
 
     if verbose
-        println("\n" * "="^70)
-        println("SMART OPTIMIZATION")
-        println("="^70)
-        println("Function: $(nameof(f))")
-        println("Target: $target")
-        println()
+        log_section("SMART OPTIMIZATION") do
+            log_info("Starting smart optimization", Dict(
+                "function" => nameof(f),
+                "target" => target
+            ))
+        end
     end
 
     improvements = String[]
 
     # Step 1: Analyze the function
     if verbose
-        println("📊 Analyzing function characteristics...")
+        log_info("Analyzing function characteristics...")
     end
 
     analysis = generate_comprehensive_report(
@@ -89,15 +89,17 @@ function smart_optimize(f, types, output_path, name; args=nothing, target=:auto,
     )
 
     if verbose
-        println("   Overall score: $(round(analysis.overall_score, digits=1))/100")
-        println("   Performance score: $(round(analysis.performance_score, digits=1))/100")
-        println("   Size score: $(round(analysis.size_score, digits=1))/100")
-        println("   Security score: $(round(analysis.security_score, digits=1))/100")
+        log_info("Analysis complete", Dict(
+            "overall_score" => "$(round(analysis.overall_score, digits=1))/100",
+            "performance_score" => "$(round(analysis.performance_score, digits=1))/100",
+            "size_score" => "$(round(analysis.size_score, digits=1))/100",
+            "security_score" => "$(round(analysis.security_score, digits=1))/100"
+        ))
     end
 
     # Step 2: Determine optimization strategy
     if verbose
-        println("\n🎯 Determining optimization strategy...")
+        log_info("Determining optimization strategy...")
     end
 
     recommended_preset, strategy = if target == :auto
@@ -114,13 +116,15 @@ function smart_optimize(f, types, output_path, name; args=nothing, target=:auto,
     end
 
     if verbose
-        println("   Recommended: $recommended_preset")
-        println("   Strategy: $strategy")
+        log_info("Strategy selected", Dict(
+            "recommended" => recommended_preset,
+            "strategy" => strategy
+        ))
     end
 
     # Step 3: Apply automatic improvements
     if verbose
-        println("\n🔧 Applying automatic improvements...")
+        log_info("Applying automatic improvements...")
     end
 
     # Check for common issues and suggest fixes
@@ -128,7 +132,7 @@ function smart_optimize(f, types, output_path, name; args=nothing, target=:auto,
         push!(improvements, "Detected $(analysis.allocations.total_allocations) allocations - " *
                            "consider removing for better performance")
         if verbose
-            println("   ⚠️  Found allocations: $(analysis.allocations.total_allocations)")
+            log_warn("Found allocations: $(analysis.allocations.total_allocations)")
         end
     end
 
@@ -136,7 +140,7 @@ function smart_optimize(f, types, output_path, name; args=nothing, target=:auto,
         push!(improvements, "Found $(length(analysis.inlining.not_inlined)) non-inlined calls - " *
                            "using aggressive optimization")
         if verbose
-            println("   ℹ️  Non-inlined calls: $(length(analysis.inlining.not_inlined))")
+            log_info("Non-inlined calls: $(length(analysis.inlining.not_inlined))")
         end
     end
 
@@ -144,7 +148,7 @@ function smart_optimize(f, types, output_path, name; args=nothing, target=:auto,
         push!(improvements, "Detected $(length(analysis.simd.missed_opportunities)) SIMD opportunities - " *
                            "using native optimizations")
         if verbose
-            println("   ℹ️  SIMD opportunities: $(length(analysis.simd.missed_opportunities))")
+            log_info("SIMD opportunities: $(length(analysis.simd.missed_opportunities))")
         end
     end
 
@@ -152,13 +156,13 @@ function smart_optimize(f, types, output_path, name; args=nothing, target=:auto,
         push!(improvements, "Found $(length(analysis.security.critical_issues)) security issues - " *
                            "applying security hardening")
         if verbose
-            println("   ⚠️  Security issues: $(length(analysis.security.critical_issues))")
+            log_warn("Security issues: $(length(analysis.security.critical_issues))")
         end
     end
 
     # Step 4: Compile with chosen preset
     if verbose
-        println("\n🔨 Compiling with optimized settings...")
+        log_info("Compiling with optimized settings...")
     end
 
     compilation_result = compile_with_preset(
@@ -287,66 +291,63 @@ end
 Print summary of smart optimization results.
 """
 function print_smart_optimization_summary(result::SmartOptimizationResult)
-    println("\n" * "="^70)
-    println("SMART OPTIMIZATION COMPLETE")
-    println("="^70)
-    println()
+    log_section("SMART OPTIMIZATION COMPLETE") do
+        log_info("Configuration", Dict(
+            "function" => result.function_name,
+            "preset" => uppercase(string(result.recommended_preset)),
+            "strategy" => result.chosen_strategy
+        ))
 
-    println("Function: $(result.function_name)")
-    println("Preset: $(uppercase(string(result.recommended_preset)))")
-    println("Strategy: $(result.chosen_strategy)")
-    println()
-
-    if result.binary_path !== nothing
-        println("Output:")
-        println("   Binary: $(result.binary_path)")
-        if result.binary_size !== nothing
-            println("   Size: $(format_bytes(result.binary_size))")
+        if result.binary_path !== nothing
+            output_dict = Dict("binary" => result.binary_path)
+            if result.binary_size !== nothing
+                output_dict["size"] = format_bytes(result.binary_size)
+            end
+            log_info("Output", output_dict)
         end
-    end
 
-    if result.performance !== nothing
-        println("\nPerformance:")
-        println("   Median: $(format_time(result.performance.median_time_ns))")
-        println("   Mean: $(format_time(result.performance.mean_time_ns)) ± " *
-               "$(format_time(result.performance.std_dev_ns))")
-    end
-
-    println("\nScores:")
-    println("   Overall: $(round(result.analysis.overall_score, digits=1))/100")
-    println("   Performance: $(round(result.analysis.performance_score, digits=1))/100")
-    println("   Size: $(round(result.analysis.size_score, digits=1))/100")
-    println("   Security: $(round(result.analysis.security_score, digits=1))/100")
-
-    if !isempty(result.improvements)
-        println("\nImprovements Applied:")
-        for (i, improvement) in enumerate(result.improvements)
-            println("   $i. $improvement")
+        if result.performance !== nothing
+            log_info("Performance", Dict(
+                "median" => format_time(result.performance.median_time_ns),
+                "mean" => format_time(result.performance.mean_time_ns),
+                "std_dev" => format_time(result.performance.std_dev_ns)
+            ))
         end
-    end
 
-    println("\nOptimization time: $(round(result.optimization_time_seconds, digits=2))s")
-    println()
+        log_info("Scores", Dict(
+            "overall" => "$(round(result.analysis.overall_score, digits=1))/100",
+            "performance" => "$(round(result.analysis.performance_score, digits=1))/100",
+            "size" => "$(round(result.analysis.size_score, digits=1))/100",
+            "security" => "$(round(result.analysis.security_score, digits=1))/100"
+        ))
 
-    # Provide recommendations
-    if result.analysis.overall_score < 70.0
-        println("💡 Suggestions for further improvement:")
-        if result.analysis.allocations !== nothing &&
-           result.analysis.allocations.total_allocations > 0
-            println("   • Remove allocations for better performance")
+        if !isempty(result.improvements)
+            log_info("Improvements Applied:")
+            for (i, improvement) in enumerate(result.improvements)
+                log_info("  $i. $improvement")
+            end
         end
-        if result.analysis.security !== nothing &&
-           !isempty(result.analysis.security.warnings)
-            println("   • Address security warnings")
+
+        log_info("Optimization time: $(round(result.optimization_time_seconds, digits=2))s")
+
+        # Provide recommendations
+        if result.analysis.overall_score < 70.0
+            log_info("Suggestions for further improvement:")
+            if result.analysis.allocations !== nothing &&
+               result.analysis.allocations.total_allocations > 0
+                log_info("  • Remove allocations for better performance")
+            end
+            if result.analysis.security !== nothing &&
+               !isempty(result.analysis.security.warnings)
+                log_warn("  • Address security warnings")
+            end
+            if result.analysis.recommendations !== nothing &&
+               !isempty(result.analysis.recommendations.recommendations)
+                log_info("  • Review automated recommendations")
+            end
+        else
+            log_info("Excellent optimization achieved!")
         end
-        if result.analysis.recommendations !== nothing &&
-           !isempty(result.analysis.recommendations.recommendations)
-            println("   • Review automated recommendations")
-        end
-        println()
-    else
-        println("✅ Excellent optimization achieved!")
-        println()
     end
 end
 
@@ -383,9 +384,11 @@ function quick_compile(f, types, name="output"; args=nothing)
     )
 
     if result.binary_path !== nothing
-        println("✅ Compiled: $(result.binary_path)")
-        println("   Size: $(format_bytes(result.binary_size))")
-        println("   Score: $(round(result.analysis.overall_score, digits=1))/100")
+        log_info("Compilation successful", Dict(
+            "binary" => result.binary_path,
+            "size" => format_bytes(result.binary_size),
+            "score" => "$(round(result.analysis.overall_score, digits=1))/100"
+        ))
         return result.binary_path
     else
         error("Compilation failed")

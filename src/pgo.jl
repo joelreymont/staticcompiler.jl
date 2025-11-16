@@ -116,7 +116,7 @@ println("Recommended profile: \$(profile.recommended_profile)")
 """
 function collect_profile(f, types, args; config=PGOConfig(), verbose=true)
     if verbose
-        println("Collecting runtime profile for $(nameof(f))...")
+        log_info("Collecting runtime profile", Dict("function" => nameof(f)))
     end
 
     # Run benchmark
@@ -144,11 +144,11 @@ function collect_profile(f, types, args; config=PGOConfig(), verbose=true)
     )
 
     if verbose
-        println("  Median time: $(format_time(benchmark_result.median_time_ns))")
-        println("  Recommended profile: $recommended")
-        if !isempty(opportunities)
-            println("  Optimization opportunities: $(length(opportunities))")
-        end
+        log_info("Profile collected", Dict(
+            "median_time" => format_time(benchmark_result.median_time_ns),
+            "recommended_profile" => recommended,
+            "opportunities" => length(opportunities)
+        ))
     end
 
     return profile_data
@@ -187,13 +187,13 @@ function pgo_compile(f, types, args, output_path, name; config=PGOConfig(), verb
     start_time = time()
 
     if verbose
-        println("\n" * "="^70)
-        println("PROFILE-GUIDED OPTIMIZATION")
-        println("="^70)
-        println("Function: $(nameof(f))")
-        println("Target: $(config.target_metric)")
-        println("Max iterations: $(config.iterations)")
-        println("")
+        log_section("PROFILE-GUIDED OPTIMIZATION") do
+            log_info("PGO Configuration", Dict(
+                "function" => nameof(f),
+                "target" => config.target_metric,
+                "max_iterations" => config.iterations
+            ))
+        end
     end
 
     profiles = ProfileData[]
@@ -205,82 +205,117 @@ function pgo_compile(f, types, args, output_path, name; config=PGOConfig(), verb
     # Iteration 1: Baseline with initial profile
     for iteration in 1:config.iterations
         if verbose
-            println("Iteration $iteration/$(config.iterations)")
-            println("-" * "^"^40)
-        end
+            log_section("Iteration $iteration/$(config.iterations)") do
+                # Determine profile to use
+                current_profile = if iteration == 1
+                    config.initial_profile
+                else
+                    # Use recommendation from previous iteration
+                    config.auto_apply ? profiles[end].recommended_profile : config.initial_profile
+                end
 
-        # Determine profile to use
-        current_profile = if iteration == 1
-            config.initial_profile
-        else
-            # Use recommendation from previous iteration
-            config.auto_apply ? profiles[end].recommended_profile : config.initial_profile
-        end
+                log_info("Using profile: $current_profile")
 
-        if verbose
-            println("  Using profile: $current_profile")
-        end
+                # Compile with current optimization profile
+                try
+                    # Get optimization flags for current profile
+                    profile_obj = get_profile_by_symbol(current_profile)
+                    opt_flags = get_optimization_flags(profile_obj)
+                    cflags = Cmd(opt_flags)
 
-        # Compile with current optimization profile
-        try
-            # Get optimization flags for current profile
-            profile_obj = get_profile_by_symbol(current_profile)
-            opt_flags = get_optimization_flags(profile_obj)
-            cflags = Cmd(opt_flags)
+                    compile_executable(f, types, output_path, name, cflags=cflags)
+                catch e
+                    log_error("Compilation failed", Dict("error" => string(e)))
+                    return
+                end
 
-            compile_executable(f, types, output_path, name, cflags=cflags)
-        catch e
-            if verbose
-                println("  Compilation failed: $e")
+                # Collect profile
+                profile = collect_profile(f, types, args, config=config, verbose=false)
+                push!(profiles, profile)
+
+                # Track metrics
+                current_time = profile.benchmark_result.median_time_ns
+                current_size = profile.benchmark_result.binary_size_bytes
+
+                if iteration == 1
+                    initial_time = current_time
+                end
+
+                if current_time < best_time
+                    best_time = current_time
+                    best_profile = current_profile
+                    best_size = current_size
+                end
+
+                # Report iteration results
+                log_info("Iteration results", Dict(
+                    "median_time" => format_time(current_time),
+                    "binary_size" => format_bytes(current_size),
+                    "recommended_next" => profile.recommended_profile
+                ))
+
+                if iteration > 1
+                    improvement = ((profiles[iteration-1].benchmark_result.median_time_ns - current_time) /
+                                  profiles[iteration-1].benchmark_result.median_time_ns) * 100.0
+                    direction = improvement > 0 ? "faster" : "slower"
+                    log_info("Change: $(abs(round(improvement, digits=2)))% $direction")
+
+                    # Check if improvement is below threshold
+                    if improvement < config.improvement_threshold && iteration > 1
+                        log_info("Improvement below threshold ($(config.improvement_threshold)%). Stopping.")
+                        return
+                    end
+                end
+
+                # Save profile if configured
+                if config.save_profiles
+                    save_profile_data(profile, config.profile_dir)
+                end
             end
-            break
-        end
+        else
+            # Non-verbose path
+            current_profile = if iteration == 1
+                config.initial_profile
+            else
+                config.auto_apply ? profiles[end].recommended_profile : config.initial_profile
+            end
 
-        # Collect profile
-        profile = collect_profile(f, types, args, config=config, verbose=false)
-        push!(profiles, profile)
+            try
+                profile_obj = get_profile_by_symbol(current_profile)
+                opt_flags = get_optimization_flags(profile_obj)
+                cflags = Cmd(opt_flags)
+                compile_executable(f, types, output_path, name, cflags=cflags)
+            catch e
+                break
+            end
 
-        # Track metrics
-        current_time = profile.benchmark_result.median_time_ns
-        current_size = profile.benchmark_result.binary_size_bytes
+            profile = collect_profile(f, types, args, config=config, verbose=false)
+            push!(profiles, profile)
 
-        if iteration == 1
-            initial_time = current_time
-        end
+            current_time = profile.benchmark_result.median_time_ns
+            current_size = profile.benchmark_result.binary_size_bytes
 
-        if current_time < best_time
-            best_time = current_time
-            best_profile = current_profile
-            best_size = current_size
-        end
+            if iteration == 1
+                initial_time = current_time
+            end
 
-        # Report iteration results
-        if verbose
-            println("  Median time: $(format_time(current_time))")
-            println("  Binary size: $(format_bytes(current_size))")
+            if current_time < best_time
+                best_time = current_time
+                best_profile = current_profile
+                best_size = current_size
+            end
 
             if iteration > 1
                 improvement = ((profiles[iteration-1].benchmark_result.median_time_ns - current_time) /
                               profiles[iteration-1].benchmark_result.median_time_ns) * 100.0
-                direction = improvement > 0 ? "faster" : "slower"
-                println("  Change: $(abs(round(improvement, digits=2)))% $direction")
-
-                # Check if improvement is below threshold
-                if improvement < config.improvement_threshold && iteration > 1
-                    if verbose
-                        println("\n  Improvement below threshold ($(config.improvement_threshold)%). Stopping.")
-                    end
+                if improvement < config.improvement_threshold
                     break
                 end
             end
 
-            println("  Recommended next: $(profile.recommended_profile)")
-            println("")
-        end
-
-        # Save profile if configured
-        if config.save_profiles
-            save_profile_data(profile, config.profile_dir)
+            if config.save_profiles
+                save_profile_data(profile, config.profile_dir)
+            end
         end
     end
 
@@ -457,31 +492,28 @@ end
 Print summary of PGO results.
 """
 function print_pgo_summary(result::PGOResult)
-    println("="^70)
-    println("PGO SUMMARY")
-    println("="^70)
-    println("")
-    println("Function: $(result.function_name)")
-    println("Iterations: $(result.iterations_completed)")
-    println("")
-    println("Results:")
-    println("  Best profile: $(result.best_profile)")
-    println("  Best time: $(format_time(result.best_time_ns))")
-    println("  Binary size: $(format_bytes(result.final_binary_size))")
-    println("  Improvement: $(round(result.improvement_pct, digits=2))%")
-    println("  Total PGO time: $(round(result.total_time_ms / 1000, digits=2))s")
-    println("")
+    log_section("PGO SUMMARY") do
+        log_info("Function: $(result.function_name)")
+        log_info("Iterations: $(result.iterations_completed)")
 
-    if result.improvement_pct > 10
-        println("Excellent improvement achieved!")
-    elseif result.improvement_pct > 5
-        println("Good improvement achieved.")
-    elseif result.improvement_pct > 0
-        println("Modest improvement achieved.")
-    else
-        println("No significant improvement. Consider manual optimization.")
+        log_info("Results", Dict(
+            "best_profile" => result.best_profile,
+            "best_time" => format_time(result.best_time_ns),
+            "binary_size" => format_bytes(result.final_binary_size),
+            "improvement" => "$(round(result.improvement_pct, digits=2))%",
+            "total_time" => "$(round(result.total_time_ms / 1000, digits=2))s"
+        ))
+
+        if result.improvement_pct > 10
+            log_info("Excellent improvement achieved!")
+        elseif result.improvement_pct > 5
+            log_info("Good improvement achieved.")
+        elseif result.improvement_pct > 0
+            log_info("Modest improvement achieved.")
+        else
+            log_warn("No significant improvement. Consider manual optimization.")
+        end
     end
-    println("")
 end
 
 """
@@ -490,28 +522,27 @@ end
 Compare two PGO results to show improvement.
 """
 function compare_pgo_results(baseline::PGOResult, optimized::PGOResult)
-    println("\nPGO Comparison:")
-    println("="^70)
+    log_section("PGO Comparison") do
+        baseline_time = baseline.best_time_ns
+        optimized_time = optimized.best_time_ns
+        speedup = baseline_time / optimized_time
 
-    baseline_time = baseline.best_time_ns
-    optimized_time = optimized.best_time_ns
-    speedup = baseline_time / optimized_time
+        baseline_size = baseline.final_binary_size
+        optimized_size = optimized.final_binary_size
+        size_ratio = optimized_size / baseline_size
 
-    baseline_size = baseline.final_binary_size
-    optimized_size = optimized.final_binary_size
-    size_ratio = optimized_size / baseline_size
+        log_info("Performance", Dict(
+            "baseline" => format_time(baseline_time),
+            "optimized" => format_time(optimized_time),
+            "speedup" => "$(round(speedup, digits=2))x"
+        ))
 
-    println("Performance:")
-    println("  Baseline:  $(format_time(baseline_time))")
-    println("  Optimized: $(format_time(optimized_time))")
-    println("  Speedup:   $(round(speedup, digits=2))x")
-    println("")
-
-    println("Binary Size:")
-    println("  Baseline:  $(format_bytes(baseline_size))")
-    println("  Optimized: $(format_bytes(optimized_size))")
-    println("  Ratio:     $(round(size_ratio, digits=2))x")
-    println("")
+        log_info("Binary Size", Dict(
+            "baseline" => format_bytes(baseline_size),
+            "optimized" => format_bytes(optimized_size),
+            "ratio" => "$(round(size_ratio, digits=2))x"
+        ))
+    end
 end
 
 # Simple JSON writer for PGO data

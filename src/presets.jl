@@ -443,11 +443,9 @@ function compile_with_preset(f, types, output_path, name, preset_name::Symbol; a
     end
 
     if verbose
-        println("\n" * "="^70)
-        println("COMPILING WITH PRESET: $(uppercase(string(preset.name)))")
-        println("="^70)
-        println("$(preset.description)")
-        println()
+        log_section("COMPILING WITH PRESET: $(uppercase(string(preset.name)))") do
+            log_info(preset.description)
+        end
     end
 
     results = Dict{String, Any}(
@@ -461,7 +459,7 @@ function compile_with_preset(f, types, output_path, name, preset_name::Symbol; a
     pgo_result = nothing
     if preset.pgo_config !== nothing && args !== nothing
         if verbose
-            println("🔄 Running profile-guided optimization...")
+            log_info("Running profile-guided optimization...")
         end
 
         pgo_result = pgo_compile(
@@ -479,10 +477,11 @@ function compile_with_preset(f, types, output_path, name, preset_name::Symbol; a
 
     # Step 2: Compile with optimizations
     if verbose
-        println("\n🔨 Compiling binary...")
-        println("   Profile: $(preset.optimization_profile)")
-        println("   LTO: $(preset.enable_lto)")
-        println("   Strip: $(preset.strip_binary)")
+        log_info("Compiling binary", Dict(
+            "profile" => preset.optimization_profile,
+            "lto" => preset.enable_lto,
+            "strip" => preset.strip_binary
+        ))
     end
 
     # Get optimization flags from preset's profile
@@ -507,14 +506,16 @@ function compile_with_preset(f, types, output_path, name, preset_name::Symbol; a
         results["binary_size"] = binary_size
 
         if verbose
-            println("   ✓ Compiled: $binary_path")
-            println("   Size: $(format_bytes(binary_size))")
+            log_info("Compilation successful", Dict(
+                "binary" => binary_path,
+                "size" => format_bytes(binary_size)
+            ))
         end
 
         # Step 3: Apply UPX if enabled
         if preset.use_upx
             if verbose
-                println("\n📦 Compressing with UPX...")
+                log_info("Compressing with UPX...")
             end
 
             upx_level = preset.build_config !== nothing ? preset.build_config.upx_level : 9
@@ -525,8 +526,10 @@ function compile_with_preset(f, types, output_path, name, preset_name::Symbol; a
                 results["compression_ratio"] = round(compressed_size / binary_size, digits=3)
 
                 if verbose
-                    println("   ✓ Compressed: $(format_bytes(compressed_size))")
-                    println("   Ratio: $(round(compressed_size / binary_size * 100, digits=1))%")
+                    log_info("Compression successful", Dict(
+                        "compressed" => format_bytes(compressed_size),
+                        "ratio" => "$(round(compressed_size / binary_size * 100, digits=1))%"
+                    ))
                 end
             end
         end
@@ -535,7 +538,7 @@ function compile_with_preset(f, types, output_path, name, preset_name::Symbol; a
     # Step 4: Run benchmarks if enabled
     if preset.benchmark_enabled && args !== nothing
         if verbose
-            println("\n⏱️  Running performance benchmarks...")
+            log_info("Running performance benchmarks...")
         end
 
         bench_config = BenchmarkConfig(samples=50, warmup_samples=10)
@@ -548,14 +551,17 @@ function compile_with_preset(f, types, output_path, name, preset_name::Symbol; a
         )
 
         if verbose
-            println("   Median: $(format_time(bench_result.median_time_ns))")
-            println("   Mean: $(format_time(bench_result.mean_time_ns)) ± $(format_time(bench_result.std_dev_ns))")
+            log_info("Benchmark complete", Dict(
+                "median" => format_time(bench_result.median_time_ns),
+                "mean" => format_time(bench_result.mean_time_ns),
+                "std_dev" => format_time(bench_result.std_dev_ns)
+            ))
         end
     end
 
     # Step 5: Generate comprehensive report
     if verbose
-        println("\n📊 Generating comprehensive report...")
+        log_info("Generating comprehensive report...")
     end
 
     report = generate_comprehensive_report(
@@ -576,30 +582,21 @@ function compile_with_preset(f, types, output_path, name, preset_name::Symbol; a
     results["total_time_seconds"] = round(total_time, digits=2)
 
     if verbose
-        println("\n" * "="^70)
-        println("PRESET COMPILATION COMPLETE")
-        println("="^70)
-        println()
-        println("Results:")
-        println("   Binary: $binary_path")
-        if haskey(results, "binary_size")
-            println("   Size: $(format_bytes(results["binary_size"]))")
+        log_section("PRESET COMPILATION COMPLETE") do
+            log_info("Results", Dict(
+                "binary" => binary_path,
+                "size" => haskey(results, "binary_size") ? format_bytes(results["binary_size"]) : "N/A",
+                "compressed" => haskey(results, "compressed_size") ? format_bytes(results["compressed_size"]) : "N/A",
+                "performance" => haskey(results, "benchmark") ? format_time(results["benchmark"]["median_time_ns"]) : "N/A"
+            ))
+            log_info("Scores", Dict(
+                "overall" => "$(round(results["scores"]["overall"], digits=1))/100",
+                "performance" => "$(round(results["scores"]["performance"], digits=1))/100",
+                "size" => "$(round(results["scores"]["size"], digits=1))/100",
+                "security" => "$(round(results["scores"]["security"], digits=1))/100"
+            ))
+            log_info("Total time: $(results["total_time_seconds"])s")
         end
-        if haskey(results, "compressed_size")
-            println("   Compressed: $(format_bytes(results["compressed_size"]))")
-        end
-        if haskey(results, "benchmark")
-            println("   Performance: $(format_time(results["benchmark"]["median_time_ns"]))")
-        end
-        println()
-        println("Scores:")
-        println("   Overall: $(round(results["scores"]["overall"], digits=1))/100")
-        println("   Performance: $(round(results["scores"]["performance"], digits=1))/100")
-        println("   Size: $(round(results["scores"]["size"], digits=1))/100")
-        println("   Security: $(round(results["scores"]["security"], digits=1))/100")
-        println()
-        println("Total time: $(results["total_time_seconds"])s")
-        println()
     end
 
     return results

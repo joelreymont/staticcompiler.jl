@@ -100,7 +100,7 @@ println("Median time: \$(result.median_time_ns / 1000) μs")
 ```
 """
 function benchmark_function(f, types, args; config=BenchmarkConfig(), verbose=true)
-    verbose && println("Benchmarking $(nameof(f))...")
+    verbose && log_info("Benchmarking $(nameof(f))...")
 
     # Compile the function
     output_dir = mktempdir()
@@ -109,7 +109,7 @@ function benchmark_function(f, types, args; config=BenchmarkConfig(), verbose=tr
 
     try
         # Compile to shared library
-        verbose && println("  Compiling...")
+        verbose && log_info("Compiling...")
         compile_shlib(f, types, binary_path, name=binary_name)
 
         if !isfile(binary_path * ".so")
@@ -117,7 +117,7 @@ function benchmark_function(f, types, args; config=BenchmarkConfig(), verbose=tr
         end
 
         binary_size = stat(binary_path * ".so").size
-        verbose && println("  Binary size: $(binary_size) bytes")
+        verbose && log_info("Binary size: $(binary_size) bytes")
 
         # Load the compiled function
         lib = Libdl.dlopen(binary_path * ".so")
@@ -133,13 +133,13 @@ function benchmark_function(f, types, args; config=BenchmarkConfig(), verbose=tr
         end
 
         # Warmup
-        verbose && println("  Warming up ($(config.warmup_samples) iterations)...")
+        verbose && log_info("Warming up ($(config.warmup_samples) iterations)...")
         for _ in 1:config.warmup_samples
             compiled_func(args...)
         end
 
         # Benchmark
-        verbose && println("  Running benchmark ($(config.samples) iterations)...")
+        verbose && log_info("Running benchmark ($(config.samples) iterations)...")
         times = Vector{Float64}(undef, config.samples)
         total_allocs = 0
         total_memory = 0
@@ -182,20 +182,23 @@ function benchmark_function(f, types, args; config=BenchmarkConfig(), verbose=tr
         )
 
         if verbose
-            println("\n📊 Benchmark Results:")
-            println("   Median: $(format_time(median_time))")
-            println("   Mean:   $(format_time(mean_time)) ± $(format_time(std_dev))")
-            println("   Range:  $(format_time(min_time)) - $(format_time(max_time))")
+            bench_results = Dict(
+                "median" => format_time(median_time),
+                "mean" => format_time(mean_time),
+                "std_dev" => format_time(std_dev),
+                "range" => "$(format_time(min_time)) - $(format_time(max_time))"
+            )
             if config.measure_allocations
-                println("   Allocations: $total_allocs / $(config.samples)")
-                println("   Memory: $(format_bytes(total_memory))")
+                bench_results["allocations"] = "$total_allocs / $(config.samples)"
+                bench_results["memory"] = format_bytes(total_memory)
             end
+            log_info("Benchmark Results", bench_results)
         end
 
         return result
 
     catch e
-        verbose && println("  ⚠️  Benchmark failed: $e")
+        verbose && log_error("Benchmark failed", Dict("error" => string(e)))
         rethrow(e)
     finally
         try
@@ -227,12 +230,14 @@ fastest = findmin(r -> r.median_time_ns, values(results))
 ```
 """
 function compare_optimization_profiles(f, types, args; config=BenchmarkConfig(), verbose=true)
-    verbose && println("=== Comparing Optimization Profiles ===\n")
+    verbose && log_section("Comparing Optimization Profiles") do
+        log_info("Starting profile comparison")
+    end
 
     results = Dict{Symbol, BenchmarkResult}()
 
     for profile in config.profiles_to_test
-        verbose && println("Testing profile: $profile")
+        verbose && log_info("Testing profile: $profile")
 
         output_dir = mktempdir()
         binary_name = string(nameof(f), "_", lowercase(string(profile)))
@@ -247,7 +252,7 @@ function compare_optimization_profiles(f, types, args; config=BenchmarkConfig(),
             compile_shlib(f, types, binary_path, name=binary_name, cflags=cflags)
 
             if !isfile(binary_path * ".so")
-                verbose && println("  ⚠️  Compilation failed for $profile\n")
+                verbose && log_warn("Compilation failed for $profile")
                 continue
             end
 
@@ -307,7 +312,7 @@ function compare_optimization_profiles(f, types, args; config=BenchmarkConfig(),
             Libdl.dlclose(lib)
 
         catch e
-            verbose && println("  ⚠️  Error benchmarking $profile: $e\n")
+            verbose && log_error("Error benchmarking $profile", Dict("error" => string(e)))
         finally
             try
                 rm(output_dir, recursive=true, force=true)
@@ -318,20 +323,19 @@ function compare_optimization_profiles(f, types, args; config=BenchmarkConfig(),
 
     # Print comparison table
     if verbose && !isempty(results)
-        println("\n📊 Profile Comparison:")
-        println("   " * "="^70)
-        println("   Profile      Median Time    Binary Size    Speedup")
-        println("   " * "-"^70)
+        log_section("Profile Comparison Results") do
+            sorted_by_time = sort(collect(results), by=x->x[2].median_time_ns)
+            baseline_time = sorted_by_time[1][2].median_time_ns
 
-        sorted_by_time = sort(collect(results), by=x->x[2].median_time_ns)
-        baseline_time = sorted_by_time[1][2].median_time_ns
-
-        for (profile, result) in sorted_by_time
-            speedup = baseline_time / result.median_time_ns
-            println("   $(rpad(string(profile), 12)) $(lpad(format_time(result.median_time_ns), 13)) " *
-                   "$(lpad(format_bytes(result.binary_size_bytes), 13))    $(round(speedup, digits=2))x")
+            for (profile, result) in sorted_by_time
+                speedup = baseline_time / result.median_time_ns
+                log_info("$(profile)", Dict(
+                    "median_time" => format_time(result.median_time_ns),
+                    "binary_size" => format_bytes(result.binary_size_bytes),
+                    "speedup" => "$(round(speedup, digits=2))x"
+                ))
+            end
         end
-        println("   " * "="^70)
     end
 
     return results

@@ -63,9 +63,9 @@ report = generate_comprehensive_report(my_func, (Int,), compile=true, benchmark=
 """
 function generate_comprehensive_report(f, types; compile=false, benchmark=false, benchmark_args=nothing, path=tempdir(), name="output", verbose=true)
     if verbose
-        println("\n" * "="^70)
-        println("GENERATING COMPREHENSIVE REPORT")
-        println("="^70)
+        log_section("GENERATING COMPREHENSIVE REPORT") do
+            log_info("Starting analysis")
+        end
     end
 
     func_name = string(nameof(f))
@@ -77,90 +77,90 @@ function generate_comprehensive_report(f, types; compile=false, benchmark=false,
 
     # Run all analyses
     if verbose
-        println("\n📊 Running analyses...")
+        log_info("Running analyses...")
     end
 
     # 1. Allocation analysis
     alloc_report = try
-        if verbose print("   • Allocations... ") end
+        verbose && log_info("Allocations...")
         r = analyze_allocations(f, types, verbose=false)
-        if verbose println("✓") end
+        verbose && log_info("✓ Allocations complete")
         r
     catch e
-        if verbose println("✗") end
+        verbose && log_warn("✗ Allocations failed")
         nothing
     end
 
     # 2. Inlining analysis
     inline_report = try
-        if verbose print("   • Inlining... ") end
+        verbose && log_info("Inlining...")
         r = analyze_inlining(f, types, verbose=false)
-        if verbose println("✓") end
+        verbose && log_info("✓ Inlining complete")
         r
     catch e
-        if verbose println("✗") end
+        verbose && log_warn("✗ Inlining failed")
         nothing
     end
 
     # 3. Bloat analysis
     bloat_report = try
-        if verbose print("   • Binary bloat... ") end
+        verbose && log_info("Binary bloat...")
         r = analyze_bloat(f, types, verbose=false)
-        if verbose println("✓") end
+        verbose && log_info("✓ Bloat analysis complete")
         r
     catch e
-        if verbose println("✗") end
+        verbose && log_warn("✗ Bloat analysis failed")
         nothing
     end
 
     # 4. SIMD analysis
     simd_report = try
-        if verbose print("   • SIMD vectorization... ") end
+        verbose && log_info("SIMD vectorization...")
         r = analyze_simd(f, types, verbose=false)
-        if verbose println("✓") end
+        verbose && log_info("✓ SIMD analysis complete")
         r
     catch e
-        if verbose println("✗") end
+        verbose && log_warn("✗ SIMD analysis failed")
         nothing
     end
 
     # 5. Security analysis
     security_report = try
-        if verbose print("   • Security... ") end
+        verbose && log_info("Security...")
         r = analyze_security(f, types, verbose=false)
-        if verbose println("✓") end
+        verbose && log_info("✓ Security analysis complete")
         r
     catch e
-        if verbose println("✗") end
+        verbose && log_warn("✗ Security analysis failed")
         nothing
     end
 
     # 6. Dependency analysis
     dependency_report = try
-        if verbose print("   • Dependencies... ") end
+        verbose && log_info("Dependencies...")
         r = analyze_dependency_bloat(f, types, verbose=false)
-        if verbose println("✓") end
+        verbose && log_info("✓ Dependency analysis complete")
         r
     catch e
-        if verbose println("✗") end
+        verbose && log_warn("✗ Dependency analysis failed")
         nothing
     end
 
     # 7. Recommendations
     recommendation_report = try
-        if verbose print("   • Recommendations... ") end
+        verbose && log_info("Recommendations...")
         r = recommend_optimizations(f, types, verbose=false)
-        if verbose println("✓") end
+        verbose && log_info("✓ Recommendations complete")
         r
     catch e
-        if verbose println("✗") end
+        verbose && log_warn("✗ Recommendations failed")
         nothing
     end
 
     # 8. Compile if requested
     if compile
         if verbose
-            println("\n🔨 Compiling binary...")
+            log_info("Compiling binary...")
         end
 
         try
@@ -171,14 +171,16 @@ function generate_comprehensive_report(f, types; compile=false, benchmark=false,
             if isfile(binary_path)
                 binary_size = filesize(binary_path)
                 if verbose
-                    println("   ✓ Compiled: $binary_path")
-                    println("   Size: $(round(binary_size/1024, digits=1)) KB")
-                    println("   Time: $(round(compilation_time, digits=1)) ms")
+                    log_info("Compilation successful", Dict(
+                        "binary" => binary_path,
+                        "size" => "$(round(binary_size/1024, digits=1)) KB",
+                        "time" => "$(round(compilation_time, digits=1)) ms"
+                    ))
                 end
             end
         catch e
             if verbose
-                println("   ✗ Compilation failed: $e")
+                log_error("Compilation failed", Dict("error" => string(e)))
             end
         end
     end
@@ -188,11 +190,11 @@ function generate_comprehensive_report(f, types; compile=false, benchmark=false,
     if benchmark
         if benchmark_args === nothing
             if verbose
-                println("\n⚠️  Benchmark requested but no benchmark_args provided")
+                log_warn("Benchmark requested but no benchmark_args provided")
             end
         else
             if verbose
-                println("\n⏱️  Running performance benchmark...")
+                log_info("Running performance benchmark...")
             end
 
             try
@@ -204,12 +206,15 @@ function generate_comprehensive_report(f, types; compile=false, benchmark=false,
                 benchmark_report = benchmark_function(f, types, benchmark_args, config=bench_config, verbose=false)
 
                 if verbose
-                    println("   ✓ Median: $(format_time(benchmark_report.median_time_ns))")
-                    println("   Mean: $(format_time(benchmark_report.mean_time_ns)) ± $(format_time(benchmark_report.std_dev_ns))")
+                    log_info("Benchmark complete", Dict(
+                        "median" => format_time(benchmark_report.median_time_ns),
+                        "mean" => format_time(benchmark_report.mean_time_ns),
+                        "std_dev" => format_time(benchmark_report.std_dev_ns)
+                    ))
                 end
             catch e
                 if verbose
-                    println("   ✗ Benchmark failed: $e")
+                    log_error("Benchmark failed", Dict("error" => string(e)))
                 end
             end
         end
@@ -312,62 +317,59 @@ end
 Print comprehensive report to console
 """
 function print_comprehensive_report(report::ComprehensiveReport)
-    println("\n" * "="^70)
-    println("COMPREHENSIVE COMPILATION REPORT")
-    println("="^70)
+    log_section("COMPREHENSIVE COMPILATION REPORT") do
+        log_info("Summary", Dict(
+            "function" => report.function_name,
+            "signature" => report.type_signature,
+            "generated" => Dates.format(report.timestamp, "yyyy-mm-dd HH:MM:SS")
+        ))
 
-    println("\n📋 SUMMARY")
-    println("   Function: $(report.function_name)")
-    println("   Signature: $(report.type_signature)")
-    println("   Generated: $(Dates.format(report.timestamp, "yyyy-mm-dd HH:MM:SS"))")
-
-    if report.binary_path !== nothing
-        println("\n💾 BINARY")
-        println("   Path: $(report.binary_path)")
-        if report.binary_size_bytes !== nothing
-            size_kb = round(report.binary_size_bytes / 1024, digits=1)
-            println("   Size: $size_kb KB")
+        if report.binary_path !== nothing
+            binary_dict = Dict("path" => report.binary_path)
+            if report.binary_size_bytes !== nothing
+                binary_dict["size"] = "$(round(report.binary_size_bytes / 1024, digits=1)) KB"
+            end
+            if report.compilation_time_ms !== nothing
+                binary_dict["compilation_time"] = "$(round(report.compilation_time_ms, digits=1)) ms"
+            end
+            log_info("Binary", binary_dict)
         end
-        if report.compilation_time_ms !== nothing
-            println("   Compilation Time: $(round(report.compilation_time_ms, digits=1)) ms")
+
+        log_info("Overall Scores", Dict(
+            "overall" => "$(round(report.overall_score, digits=1))/100",
+            "performance" => "$(round(report.performance_score, digits=1))/100",
+            "size" => "$(round(report.size_score, digits=1))/100",
+            "security" => "$(round(report.security_score, digits=1))/100"
+        ))
+
+        # Print key findings
+        if report.allocations !== nothing && report.allocations.total_allocations > 0
+            log_warn("ALLOCATIONS: $(report.allocations.total_allocations) detected")
+        end
+
+        if report.simd !== nothing && report.simd.vectorization_score < 50
+            log_warn("SIMD: Low vectorization ($(round(report.simd.vectorization_score, digits=1))/100)")
+        end
+
+        if report.security !== nothing && !isempty(report.security.critical_issues)
+            log_error("SECURITY: $(length(report.security.critical_issues)) critical issues!")
+        end
+
+        if report.dependencies !== nothing && report.dependencies.bloat_score > 60
+            log_warn("DEPENDENCIES: High bloat score ($(round(report.dependencies.bloat_score, digits=1))/100)")
+        end
+
+        # Top recommendations
+        if report.recommendations !== nothing && !isempty(report.recommendations.recommendations)
+            log_info("Top Recommendations:")
+            critical = filter(r -> r.priority == :critical, report.recommendations.recommendations)
+            high = filter(r -> r.priority == :high, report.recommendations.recommendations)
+
+            for (i, rec) in enumerate(vcat(critical, high)[1:min(3, length(critical) + length(high))])
+                log_info("  $(i). [$(uppercase(string(rec.priority)))] $(rec.issue)")
+            end
         end
     end
-
-    println("\n🎯 OVERALL SCORES")
-    println("   Overall:     $(round(report.overall_score, digits=1))/100")
-    println("   Performance: $(round(report.performance_score, digits=1))/100")
-    println("   Size:        $(round(report.size_score, digits=1))/100")
-    println("   Security:    $(round(report.security_score, digits=1))/100")
-
-    # Print key findings
-    if report.allocations !== nothing && report.allocations.total_allocations > 0
-        println("\n⚠️  ALLOCATIONS: $(report.allocations.total_allocations) detected")
-    end
-
-    if report.simd !== nothing && report.simd.vectorization_score < 50
-        println("⚠️  SIMD: Low vectorization ($(round(report.simd.vectorization_score, digits=1))/100)")
-    end
-
-    if report.security !== nothing && !isempty(report.security.critical_issues)
-        println("❌ SECURITY: $(length(report.security.critical_issues)) critical issues!")
-    end
-
-    if report.dependencies !== nothing && report.dependencies.bloat_score > 60
-        println("⚠️  DEPENDENCIES: High bloat score ($(round(report.dependencies.bloat_score, digits=1))/100)")
-    end
-
-    # Top recommendations
-    if report.recommendations !== nothing && !isempty(report.recommendations.recommendations)
-        println("\n💡 TOP RECOMMENDATIONS:")
-        critical = filter(r -> r.priority == :critical, report.recommendations.recommendations)
-        high = filter(r -> r.priority == :high, report.recommendations.recommendations)
-
-        for (i, rec) in enumerate(vcat(critical, high)[1:min(3, length(critical) + length(high))])
-            println("   $(i). [$(uppercase(string(rec.priority)))] $(rec.issue)")
-        end
-    end
-
-    println("="^70)
 end
 
 """
