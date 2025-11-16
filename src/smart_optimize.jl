@@ -221,7 +221,7 @@ function choose_optimal_preset(analysis::ComprehensiveReport, has_benchmark::Boo
                      0
 
     # Check if it's a small, simple function
-    is_small_function = estimated_size < 50_000  # < 50KB
+    is_small_function = estimated_size < SMART_OPT_SMALL_THRESHOLD
 
     # Check performance characteristics
     has_simd_opportunities = analysis.simd !== nothing &&
@@ -246,11 +246,11 @@ function choose_optimal_preset(analysis::ComprehensiveReport, has_benchmark::Boo
         # Security issues present - use release profile with hardening
         return (:release, "Security issues detected - using release profile with hardening")
 
-    elseif estimated_size > 100_000 && estimated_size < 500_000
+    elseif estimated_size > SMART_OPT_MEDIUM_THRESHOLD && estimated_size < SMART_OPT_LARGE_THRESHOLD
         # Medium-sized binary - balance size and speed
         return (:serverless, "Medium-sized binary - balancing size and startup time")
 
-    elseif estimated_size >= 500_000
+    elseif estimated_size >= SMART_OPT_LARGE_THRESHOLD
         # Large binary - focus on performance since size is already large
         return (:hpc, "Large binary - focusing on performance optimization")
 

@@ -57,7 +57,7 @@ struct PGOConfig
         target_metric::Symbol = :speed,
         iterations::Int = 2,
         benchmark_samples::Int = 50,
-        improvement_threshold::Float64 = 5.0,
+        improvement_threshold::Float64 = DEFAULT_IMPROVEMENT_THRESHOLD_PCT,
         auto_apply::Bool = true,
         save_profiles::Bool = true,
         profile_dir::String = ".pgo"
@@ -353,16 +353,16 @@ function identify_optimization_opportunities(f, types, benchmark_result, config)
         end
     elseif config.target_metric == :size
         # Size optimizations
-        if benchmark_result.binary_size_bytes > 50_000  # > 50KB
+        if benchmark_result.binary_size_bytes > BINARY_SIZE_SMALL
             push!(opportunities, "Large binary - consider symbol stripping")
         end
 
-        if benchmark_result.binary_size_bytes > 100_000  # > 100KB
+        if benchmark_result.binary_size_bytes > BINARY_SIZE_MEDIUM
             push!(opportunities, "Very large binary - consider UPX compression")
         end
     else  # :balanced
         # Balanced optimizations
-        if benchmark_result.allocations > 0 && benchmark_result.binary_size_bytes < 100_000
+        if benchmark_result.allocations > 0 && benchmark_result.binary_size_bytes < BINARY_SIZE_MEDIUM
             push!(opportunities, "Remove allocations without size penalty")
         end
     end
@@ -378,7 +378,7 @@ Recommend an optimization profile based on runtime characteristics and target me
 function recommend_profile(benchmark_result, config)
     if config.target_metric == :speed
         # For speed, choose based on execution time
-        if benchmark_result.median_time_ns > 100_000  # > 100μs
+        if benchmark_result.median_time_ns > PERFORMANCE_THRESHOLD_SLOW_NS
             return :PROFILE_AGGRESSIVE
         else
             return :PROFILE_SPEED
@@ -388,9 +388,9 @@ function recommend_profile(benchmark_result, config)
         return :PROFILE_SIZE
     else  # :balanced
         # Balanced: consider both time and size
-        if benchmark_result.binary_size_bytes > 100_000
+        if benchmark_result.binary_size_bytes > BINARY_SIZE_MEDIUM
             return :PROFILE_SIZE
-        elseif benchmark_result.median_time_ns > 50_000
+        elseif benchmark_result.median_time_ns > PERFORMANCE_THRESHOLD_FAST_NS
             return :PROFILE_SPEED
         else
             return :PROFILE_DEBUG

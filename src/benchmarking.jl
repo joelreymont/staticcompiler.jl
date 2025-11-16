@@ -70,7 +70,7 @@ struct BenchmarkConfig
         profiles_to_test::Vector{Symbol} = [:SPEED, :SIZE],
         compare_baseline::Bool = true,
         check_regression::Bool = false,
-        regression_threshold::Float64 = 5.0
+        regression_threshold::Float64 = DEFAULT_REGRESSION_THRESHOLD_PCT
     )
         new(samples, warmup_samples, measure_allocations, timeout_seconds,
             profiles_to_test, compare_baseline, check_regression, regression_threshold)
@@ -358,7 +358,7 @@ if has_regr
 end
 ```
 """
-function detect_performance_regression(current::BenchmarkResult, baseline::BenchmarkResult; threshold=5.0)
+function detect_performance_regression(current::BenchmarkResult, baseline::BenchmarkResult; threshold=DEFAULT_REGRESSION_THRESHOLD_PCT)
     pct_change = ((current.median_time_ns - baseline.median_time_ns) / baseline.median_time_ns) * 100.0
 
     if pct_change > threshold
@@ -455,11 +455,7 @@ function save_benchmark_history(result::BenchmarkResult, filepath::String)
     # Load existing history
     history = if isfile(filepath)
         try
-            json_str = read(filepath, String)
-            # Parse simple JSON manually
-            existing = []
-            # For now, just append - full JSON parsing would be complex
-            existing
+            parse_json_file(filepath)
         catch
             []
         end
@@ -471,50 +467,5 @@ function save_benchmark_history(result::BenchmarkResult, filepath::String)
     push!(history, benchmark_to_dict(result))
 
     # Write back
-    mkpath(dirname(filepath))
-    open(filepath, "w") do io
-        _write_simple_json(io, history, 0)
-    end
-end
-
-# Reuse the JSON writer from comprehensive_report.jl
-function _write_simple_json(io::IO, data, indent::Int)
-    prefix = "  "^indent
-
-    if data === nothing
-        print(io, "null")
-    elseif isa(data, Array)
-        println(io, "[")
-        for (i, item) in enumerate(data)
-            print(io, prefix, "  ")
-            _write_simple_json(io, item, indent + 1)
-            if i < length(data)
-                println(io, ",")
-            else
-                println(io)
-            end
-        end
-        print(io, prefix, "]")
-    elseif isa(data, Dict)
-        println(io, "{")
-        keys_list = collect(keys(data))
-        for (i, key) in enumerate(keys_list)
-            print(io, prefix, "  \"", key, "\": ")
-            _write_simple_json(io, data[key], indent + 1)
-            if i < length(keys_list)
-                println(io, ",")
-            else
-                println(io)
-            end
-        end
-        print(io, prefix, "}")
-    elseif isa(data, String)
-        print(io, "\"", escape_string(data), "\"")
-    elseif isa(data, Number)
-        print(io, data)
-    elseif isa(data, Bool)
-        print(io, data ? "true" : "false")
-    else
-        print(io, "\"", string(data), "\"")
-    end
+    write_json_file(filepath, history)
 end

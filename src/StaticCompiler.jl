@@ -51,7 +51,12 @@ export save_profile_data, load_profile_data, compare_pgo_results
 export OptimizationPreset, get_preset, list_presets, compile_with_preset, compare_presets
 export PRESET_EMBEDDED, PRESET_SERVERLESS, PRESET_HPC, PRESET_DESKTOP, PRESET_DEVELOPMENT, PRESET_RELEASE
 export SmartOptimizationResult, smart_optimize, quick_compile
+export parse_json, parse_json_file, write_json, write_json_file, to_json_string
+export ResultCacheConfig, result_cache_key, cache_benchmark_result, load_cached_benchmark
+export cache_pgo_result, load_cached_pgo, clean_result_cache, clear_result_cache, result_cache_stats
 
+include("constants.jl")
+include("json_utils.jl")
 include("interpreter.jl")
 include("target.jl")
 include("pointer_warning.jl")
@@ -78,6 +83,7 @@ include("benchmarking.jl")
 include("pgo.jl")
 include("presets.jl")
 include("smart_optimize.jl")
+include("result_cache.jl")
 
 fix_name(f::Function) = fix_name(string(nameof(f)))
 fix_name(s) = String(GPUCompiler.safe_name(s))
