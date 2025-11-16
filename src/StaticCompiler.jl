@@ -58,8 +58,16 @@ export CompilationError, CompilationFailure, BenchmarkError, PGOError
 export with_cleanup, safe_compile, safe_benchmark, retry_on_failure
 export validate_compilation_result, collect_diagnostics, error_context
 export parallel_compare_presets, parallel_benchmark_profiles, get_optimal_concurrency
+export LogLevel, DEBUG, INFO, WARN, ERROR, SILENT
+export LogConfig, set_log_config, get_log_config
+export log_debug, log_info, log_warn, log_error
+export with_logging, log_section, log_progress, rotate_log_file, clear_log_file
+export CrossTarget, get_cross_target, list_cross_targets
+export cross_compile, cross_compile_with_preset, compare_cross_targets, detect_host_target
+export interactive_optimize, quick_interactive_menu
 
 include("constants.jl")
+include("logging.jl")
 include("error_handling.jl")
 include("json_utils.jl")
 include("interpreter.jl")
@@ -90,6 +98,8 @@ include("presets.jl")
 include("smart_optimize.jl")
 include("result_cache.jl")
 include("parallel.jl")
+include("cross_compile.jl")
+include("interactive_tui.jl")
 
 fix_name(f::Function) = fix_name(string(nameof(f)))
 fix_name(s) = String(GPUCompiler.safe_name(s))
