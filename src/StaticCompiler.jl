@@ -35,6 +35,10 @@ export AllocationProfile, InlineAnalysis, CallNode, BloatAnalysis, AdvancedAnaly
 export analyze_allocations, analyze_inlining, build_call_graph, analyze_bloat, advanced_analysis
 export Recommendation, OptimizationRecommendations
 export recommend_optimizations, quick_optimize
+export BuildConfig, save_config, load_config, compile_with_config, create_default_config
+export SIMDReport, analyze_simd
+export SecurityIssue, SecurityReport, analyze_security
+export MemoryLayoutReport, analyze_memory_layout, suggest_layout_optimization
 
 include("interpreter.jl")
 include("target.jl")
@@ -50,6 +54,10 @@ include("optimization.jl")
 include("benchmark.jl")
 include("advanced_analysis.jl")
 include("recommendations.jl")
+include("build_config.jl")
+include("simd_analysis.jl")
+include("security_analysis.jl")
+include("memory_layout.jl")
 
 fix_name(f::Function) = fix_name(string(nameof(f)))
 fix_name(s) = String(GPUCompiler.safe_name(s))

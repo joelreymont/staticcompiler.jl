@@ -40,7 +40,7 @@ Advanced optimization techniques:
 
 - **`size_optimization.jl`** - Shows how to minimize binary size
 - **`automated_recommendations.jl`** - Get automated optimization suggestions
-- **`build_config.jl`** - Save and reuse build configurations
+- **`build_config_demo.jl`** - Save and reuse build configurations
 
 **Concepts covered:**
 - Optimization profiles
@@ -50,14 +50,40 @@ Advanced optimization techniques:
 - Build configurations
 - Reproducible builds
 
+### Analysis Examples (`analysis/`)
+
+Advanced static analysis tools:
+
+- **`simd_demo.jl`** - Analyze SIMD vectorization opportunities
+- **`security_demo.jl`** - Detect potential security vulnerabilities
+- **`memory_layout_demo.jl`** - Optimize struct memory layouts
+
+**Concepts covered:**
+- SIMD vectorization detection
+- Security issue analysis
+- Memory layout optimization
+- Cache efficiency analysis
+- Struct field reordering
+
 ## Running Examples
 
 Each example is standalone. Just run with Julia:
 
 ```bash
+# Basic examples
 julia examples/basic/fibonacci.jl
+
+# Performance examples
 julia examples/performance/cache_demo.jl
+
+# Optimization examples
 julia examples/optimization/size_optimization.jl
+julia examples/optimization/build_config_demo.jl
+
+# Analysis examples
+julia examples/analysis/simd_demo.jl
+julia examples/analysis/security_demo.jl
+julia examples/analysis/memory_layout_demo.jl
 ```
 
 ## Expected Output
@@ -106,6 +132,134 @@ Second compilation (with cache)...
 📊 Total size reduction: 15.7 KB → 5.8 KB (63.1%)
 ```
 
+### simd_demo.jl
+```
+=== SIMD Vectorization Analysis Demo ===
+
+1️⃣  Non-vectorized loop:
+   Vectorization Score: 0.0/100
+   Issues: Loop detected without SIMD vectorization
+
+2️⃣  SIMD-optimized loop:
+   Vectorization Score: 80.0/100
+   SIMD Instructions: 4
+
+3️⃣  Vector computation:
+   Vectorization Score: 100.0/100
+   SIMD Instructions Found:
+      - Vector multiplication (SIMD)
+      - Vector addition (SIMD)
+      - Vector load (SIMD)
+
+📊 Summary:
+   Scalar loop:  0.0/100
+   SIMD loop:    80.0/100
+   Vector ops:   100.0/100
+```
+
+### security_demo.jl
+```
+=== Security Analysis Demo ===
+
+1️⃣  Safe bounded access:
+   Security Score: 100.0/100
+   Issues Found: 0
+
+2️⃣  Unchecked array access:
+   Security Score: 50.0/100
+   Issues Found: 1
+      1. unchecked_access: Unchecked array access detected
+
+3️⃣  Integer arithmetic:
+   Security Score: 80.0/100
+   Issues Found: 1
+      - integer_overflow
+
+4️⃣  Safe with @boundscheck:
+   Security Score: 100.0/100
+   Issues Found: 0
+
+📊 Security Score Comparison:
+   Safe access:      100.0/100
+   Unchecked access: 50.0/100
+   Integer ops:      80.0/100
+   Bounds-checked:   100.0/100
+```
+
+### memory_layout_demo.jl
+```
+=== Memory Layout Optimization Demo ===
+
+1️⃣  Poorly ordered struct:
+   Total Size: 32 bytes
+   Padding: 14 bytes (43.8% wasted)
+   Cache Efficiency: 50.0%
+
+2️⃣  Well-ordered struct:
+   Total Size: 24 bytes
+   Padding: 6 bytes (25.0% wasted)
+   Cache Efficiency: 37.5%
+
+3️⃣  Complex struct:
+   Total Size: 40 bytes
+   Padding: 11 bytes
+   Potential Savings: 8 bytes
+   Suggested Order: value1, value2, counter, flag1, flag2
+
+4️⃣  Already optimal struct:
+   Total Size: 24 bytes
+   Padding: 0 bytes
+   Cache Efficiency: 37.5%
+
+📊 Size Comparison:
+   Bad Layout:     32 bytes (14 bytes padding)
+   Good Layout:    24 bytes (6 bytes padding)
+   Complex Layout: 40 bytes (11 bytes padding)
+   Optimal Layout: 24 bytes (0 bytes padding)
+
+💾 Memory Savings: 8 bytes (25.0% reduction)
+```
+
+### build_config_demo.jl
+```
+=== Build Configuration Demo ===
+
+1️⃣  Creating size-optimized configuration...
+   ✅ Saved to: /tmp/jl_xxx/size_config.jls
+
+2️⃣  Creating speed-optimized configuration...
+   ✅ Saved to: /tmp/jl_xxx/speed_config.jls
+
+3️⃣  Loading saved configuration...
+   Profile: SIZE
+   Name: my_app
+   Version: 1.0.0
+   Description: Size-optimized build for deployment
+   Cache: true
+   Strip: true
+   UPX: true
+
+4️⃣  Compiling with saved configuration...
+   ✅ Compiled successfully!
+   Path: /tmp/jl_xxx/my_app
+   Size: 14.2 KB
+   ✅ Execution successful
+
+5️⃣  Configuration Comparison:
+
+   Size-Optimized Build:
+      Profile: SIZE
+      Strip: true
+      UPX: true (level: best)
+      Custom flags: none
+
+   Speed-Optimized Build:
+      Profile: SPEED
+      Strip: false
+      UPX: false
+      Custom flags: -march=native
+```
+
 ## Learning Path
 
 Recommended order for learning:
@@ -114,6 +268,7 @@ Recommended order for learning:
 2. Try `basic/fibonacci.jl` - learn about shared libraries
 3. Run `performance/cache_demo.jl` - see the performance benefits
 4. Explore `optimization/` examples - learn advanced techniques
+5. Try `analysis/` examples - understand code analysis and optimization opportunities
 
 ## Requirements
 

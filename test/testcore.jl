@@ -542,3 +542,74 @@ end
     exe = StaticCompiler.quick_optimize(good_func, (Int,), workdir, "quick_test", verbose=false)
     @test isfile(exe)
 end
+
+@testset "Build Configuration" begin
+    # Test configuration creation
+    config = StaticCompiler.BuildConfig(
+        profile=StaticCompiler.PROFILE_SIZE,
+        name="test_config",
+        version="1.0.0"
+    )
+    @test config isa StaticCompiler.BuildConfig
+    @test config.name == "test_config"
+
+    # Test save/load
+    config_file = joinpath(workdir, "test_config.jlconfig")
+    StaticCompiler.save_config(config, config_file)
+    @test isfile(config_file)
+
+    loaded = StaticCompiler.load_config(config_file)
+    @test loaded.name == "test_config"
+    @test loaded.version == "1.0.0"
+
+    # Test compile with config
+    config_func() = 0
+    exe = StaticCompiler.compile_with_config(config_func, (), loaded, path=workdir)
+    @test isfile(exe)
+end
+
+@testset "SIMD Analysis" begin
+    # Test SIMD analysis on simple function
+    simd_func(x::Int) = x * 2 + 1
+
+    report = StaticCompiler.analyze_simd(simd_func, (Int,), verbose=false)
+    @test report isa StaticCompiler.SIMDReport
+    @test report.vectorization_score >= 0.0
+    @test report.vectorization_score <= 100.0
+    @test report.vectorized_loops >= 0
+    @test report.missed_opportunities isa Vector
+end
+
+@testset "Security Analysis" begin
+    # Test security analysis
+    safe_func(x::Int) = x + 1
+
+    report = StaticCompiler.analyze_security(safe_func, (Int,), verbose=false)
+    @test report isa StaticCompiler.SecurityReport
+    @test report.security_score >= 0.0
+    @test report.security_score <= 100.0
+    @test report.critical_issues isa Vector
+    @test report.warnings isa Vector
+end
+
+@testset "Memory Layout Analysis" begin
+    # Define test struct
+    struct TestStruct
+        a::Int8
+        b::Int64
+        c::Int8
+    end
+
+    report = StaticCompiler.analyze_memory_layout(TestStruct, verbose=false)
+    @test report isa StaticCompiler.MemoryLayoutReport
+    @test report.total_size > 0
+    @test report.alignment > 0
+    @test report.padding_bytes >= 0
+    @test length(report.field_info) == 3
+    @test length(report.suggested_order) == 3
+
+    # Test suggested optimization
+    opt_str = StaticCompiler.suggest_layout_optimization(TestStruct)
+    @test opt_str isa String
+    @test occursin("struct", opt_str) || occursin("No optimization", opt_str)
+end
