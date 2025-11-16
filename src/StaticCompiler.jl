@@ -46,6 +46,8 @@ export CIConfig, ci_compile_and_test, setup_ci_cache, ci_cache_stats, generate_c
 export detect_ci_environment, write_github_actions_summary, GITHUB_ACTIONS_EXAMPLE, GITLAB_CI_EXAMPLE
 export BenchmarkResult, BenchmarkConfig, benchmark_function, compare_optimization_profiles
 export detect_performance_regression, save_benchmark_history, format_time, format_bytes
+export ProfileData, PGOConfig, PGOResult, collect_profile, pgo_compile
+export save_profile_data, load_profile_data, compare_pgo_results
 
 include("interpreter.jl")
 include("target.jl")
@@ -70,6 +72,7 @@ include("dependency_analysis.jl")
 include("comprehensive_report.jl")
 include("ci_integration.jl")
 include("benchmarking.jl")
+include("pgo.jl")
 
 fix_name(f::Function) = fix_name(string(nameof(f)))
 fix_name(s) = String(GPUCompiler.safe_name(s))

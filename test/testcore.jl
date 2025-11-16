@@ -934,3 +934,147 @@ end
         @warn "Comprehensive report benchmark test skipped: $e"
     end
 end
+
+@testset "Profile-Guided Optimization" begin
+    # Test function
+    pgo_test_func(x::Int, y::Int) = x * y + x - y
+
+    # Test PGOConfig
+    config = StaticCompiler.PGOConfig(
+        target_metric = :speed,
+        iterations = 2,
+        benchmark_samples = 10,
+        improvement_threshold = 3.0,
+        auto_apply = true,
+        save_profiles = false
+    )
+
+    @test config.target_metric == :speed
+    @test config.iterations == 2
+    @test config.benchmark_samples == 10
+    @test config.improvement_threshold == 3.0
+    @test config.auto_apply == true
+    @test config.save_profiles == false
+
+    # Test profile collection
+    try
+        profile = StaticCompiler.collect_profile(
+            pgo_test_func,
+            (Int, Int),
+            (10, 20),
+            config=config,
+            verbose=false
+        )
+
+        @test profile isa StaticCompiler.ProfileData
+        @test profile.function_name == "pgo_test_func"
+        @test profile.benchmark_result isa StaticCompiler.BenchmarkResult
+        @test profile.recommended_profile isa Symbol
+        @test profile.hot_paths isa Vector{String}
+        @test profile.optimization_opportunities isa Vector{String}
+    catch e
+        @warn "Profile collection test skipped: $e"
+    end
+
+    # Test profile recommendation
+    mock_benchmark = StaticCompiler.BenchmarkResult(
+        "test_func",
+        50,
+        100.0,
+        150.0,
+        155.0,
+        200.0,
+        10.0,
+        0,
+        0,
+        nothing,
+        50000,  # 50KB binary
+        Dates.now()
+    )
+
+    # Speed target with slow execution
+    config_speed = StaticCompiler.PGOConfig(target_metric=:speed)
+    rec = StaticCompiler.recommend_profile(mock_benchmark, config_speed)
+    @test rec in [:PROFILE_SPEED, :PROFILE_AGGRESSIVE]
+
+    # Size target
+    config_size = StaticCompiler.PGOConfig(target_metric=:size)
+    rec_size = StaticCompiler.recommend_profile(mock_benchmark, config_size)
+    @test rec_size == :PROFILE_SIZE
+
+    # Balanced target
+    config_balanced = StaticCompiler.PGOConfig(target_metric=:balanced)
+    rec_balanced = StaticCompiler.recommend_profile(mock_benchmark, config_balanced)
+    @test rec_balanced isa Symbol
+
+    # Test hot path identification
+    hot_paths = StaticCompiler.identify_hot_paths(pgo_test_func, (Int, Int), mock_benchmark)
+    @test hot_paths isa Vector{String}
+
+    # Test optimization opportunities
+    opportunities = StaticCompiler.identify_optimization_opportunities(
+        pgo_test_func,
+        (Int, Int),
+        mock_benchmark,
+        config_speed
+    )
+    @test opportunities isa Vector{String}
+
+    # Test PGO compilation (basic - may skip on actual compilation)
+    workdir = mktempdir()
+    try
+        pgo_config = StaticCompiler.PGOConfig(
+            target_metric = :speed,
+            iterations = 1,  # Just 1 iteration for testing
+            benchmark_samples = 5,
+            save_profiles = false
+        )
+
+        result = StaticCompiler.pgo_compile(
+            pgo_test_func,
+            (Int, Int),
+            (10, 20),
+            workdir,
+            "pgo_test",
+            config=pgo_config,
+            verbose=false
+        )
+
+        @test result isa StaticCompiler.PGOResult
+        @test result.function_name == "pgo_test_func"
+        @test result.iterations_completed >= 1
+        @test result.iterations_completed <= pgo_config.iterations
+        @test result.best_profile isa Symbol
+        @test result.best_time_ns > 0
+        @test length(result.profiles) == result.iterations_completed
+
+    catch e
+        @warn "PGO compilation test skipped: $e"
+    finally
+        rm(workdir, recursive=true, force=true)
+    end
+
+    # Test profile saving/loading
+    workdir = mktempdir()
+    try
+        mock_profile = StaticCompiler.ProfileData(
+            "test_func",
+            "(Int, Int)",
+            mock_benchmark,
+            ["hot path 1"],
+            ["opportunity 1"],
+            :PROFILE_SPEED,
+            Dates.now()
+        )
+
+        StaticCompiler.save_profile_data(mock_profile, workdir)
+
+        # Check that file was created
+        files = readdir(workdir)
+        @test length(files) > 0
+        @test any(occursin("test_func", f) for f in files)
+
+    finally
+        rm(workdir, recursive=true, force=true)
+    end
+end

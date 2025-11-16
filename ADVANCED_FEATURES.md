@@ -16,7 +16,8 @@ This guide covers the advanced static analysis, optimization, and compression fe
 10. [Comprehensive Reporting](#comprehensive-reporting)
 11. [CI/CD Integration](#cicd-integration)
 12. [Performance Benchmarking](#performance-benchmarking)
-13. [Complete Optimization Workflows](#complete-optimization-workflows)
+13. [Profile-Guided Optimization](#profile-guided-optimization)
+14. [Complete Optimization Workflows](#complete-optimization-workflows)
 
 ---
 
@@ -1920,6 +1921,480 @@ if haskey(ENV, "BASELINE_MEDIAN_NS")
     )
     has_regr && error(msg)
 end
+```
+
+---
+
+## Profile-Guided Optimization
+
+Profile-Guided Optimization (PGO) uses runtime profiling data to guide compilation decisions. By measuring actual performance, PGO can identify the best optimization settings iteratively.
+
+### How PGO Works
+
+PGO follows an iterative process:
+1. Compile with initial profile (typically DEBUG for accurate profiling)
+2. Run benchmarks to collect runtime performance data
+3. Analyze data to identify hot paths and optimization opportunities
+4. Recompile with recommended optimizations
+5. Repeat until convergence or maximum iterations reached
+
+### Basic Profile Collection
+
+Collect runtime profile data for a function:
+
+```julia
+using StaticCompiler
+
+function matrix_computation(n::Int)
+    result = 0.0
+    for i in 1:n
+        for j in 1:n
+            result += i * j * 0.5
+        end
+    end
+    return Int(floor(result))
+end
+
+# Collect profile
+profile = collect_profile(matrix_computation, (Int,), (50,))
+
+# Output
+Collecting runtime profile for matrix_computation...
+  Median time: 12.5 us
+  Recommended profile: PROFILE_AGGRESSIVE
+```
+
+### ProfileData Structure
+
+Profile data contains:
+
+| Field | Description |
+|-------|-------------|
+| `function_name` | Name of profiled function |
+| `type_signature` | Type signature string |
+| `benchmark_result` | BenchmarkResult with timing data |
+| `hot_paths` | Identified hot code paths |
+| `optimization_opportunities` | Detected optimization opportunities |
+| `recommended_profile` | Recommended optimization profile |
+| `timestamp` | When profile was collected |
+
+### PGO Compilation
+
+Perform iterative profile-guided optimization:
+
+```julia
+config = PGOConfig(
+    target_metric = :speed,          # Optimization goal: :speed, :size, or :balanced
+    iterations = 3,                  # Number of PGO cycles
+    benchmark_samples = 50,          # Samples per benchmark
+    improvement_threshold = 5.0,     # Min % improvement to continue
+    auto_apply = true,               # Automatically apply recommendations
+    save_profiles = true,            # Save profile data
+    profile_dir = ".pgo"            # Profile storage directory
+)
+
+result = pgo_compile(
+    matrix_computation,
+    (Int,),
+    (50,),
+    "dist",
+    "matrix_app",
+    config=config
+)
+
+# Output
+======================================================================
+PROFILE-GUIDED OPTIMIZATION
+======================================================================
+Function: matrix_computation
+Target: speed
+Max iterations: 3
+
+Iteration 1/3
+----------------------------------------
+  Using profile: PROFILE_DEBUG
+  Median time: 15.2 us
+  Binary size: 18.4 KB
+  Recommended next: PROFILE_AGGRESSIVE
+
+Iteration 2/3
+----------------------------------------
+  Using profile: PROFILE_AGGRESSIVE
+  Median time: 12.1 us
+  Binary size: 20.1 KB
+  Change: 20.4% faster
+  Recommended next: PROFILE_SPEED
+
+Iteration 3/3
+----------------------------------------
+  Using profile: PROFILE_SPEED
+  Median time: 11.8 us
+  Binary size: 19.2 KB
+  Change: 2.5% faster
+
+  Improvement below threshold (5.0%). Stopping.
+
+======================================================================
+PGO SUMMARY
+======================================================================
+
+Function: matrix_computation
+Iterations: 3
+
+Results:
+  Best profile: PROFILE_SPEED
+  Best time: 11.8 us
+  Binary size: 19.2 KB
+  Improvement: 22.4%
+  Total PGO time: 8.5s
+
+Excellent improvement achieved!
+```
+
+### PGOConfig Options
+
+Configuration parameters:
+
+```julia
+PGOConfig(
+    initial_profile = :PROFILE_DEBUG,     # Starting profile
+    target_metric = :speed,               # :speed, :size, or :balanced
+    iterations = 2,                       # Number of cycles (1-10)
+    benchmark_samples = 50,               # Samples per iteration
+    improvement_threshold = 5.0,          # Stop if improvement < this %
+    auto_apply = true,                    # Auto-apply recommendations
+    save_profiles = true,                 # Save profile data to disk
+    profile_dir = ".pgo"                 # Profile storage directory
+)
+```
+
+### Target Metrics
+
+Choose the optimization goal:
+
+**Speed Target (`:speed`):**
+- Prioritizes execution time
+- Recommends aggressive inlining and vectorization
+- May increase binary size for performance
+
+```julia
+config = PGOConfig(target_metric = :speed)
+```
+
+**Size Target (`:size`):**
+- Prioritizes binary size
+- Recommends size optimizations and compression
+- May sacrifice some performance
+
+```julia
+config = PGOConfig(target_metric = :size)
+```
+
+**Balanced Target (`:balanced`):**
+- Balances size and speed
+- Considers both metrics in recommendations
+- Good default for general use
+
+```julia
+config = PGOConfig(target_metric = :balanced)
+```
+
+### Hot Path Identification
+
+PGO automatically identifies performance hotspots:
+
+```julia
+profile = collect_profile(my_func, (Int,), (1000,))
+
+for path in profile.hot_paths
+    println("Hot path: $path")
+end
+
+# Example output:
+# Hot path: Long execution time detected - consider algorithm optimization
+# Hot path: Allocations detected - potential GC pressure
+# Hot path: High variance - may have conditional hot paths
+```
+
+### Optimization Opportunities
+
+PGO detects optimization opportunities based on runtime behavior:
+
+```julia
+for opp in profile.optimization_opportunities
+    println("Opportunity: $opp")
+end
+
+# For :speed target:
+# Opportunity: Remove allocations for better speed
+# Opportunity: Consider SIMD vectorization for speed
+# Opportunity: Reduce branching to improve predictability
+
+# For :size target:
+# Opportunity: Large binary - consider symbol stripping
+# Opportunity: Very large binary - consider UPX compression
+```
+
+### Iterative Optimization
+
+PGO performs multiple compilation cycles:
+
+```julia
+config = PGOConfig(
+    iterations = 4,
+    improvement_threshold = 3.0
+)
+
+result = pgo_compile(func, types, args, "dist", "app", config=config)
+
+# Access iteration data
+for (i, profile) in enumerate(result.profiles)
+    println("Iteration $i:")
+    println("  Time: $(format_time(profile.benchmark_result.median_time_ns))")
+    println("  Profile: $(profile.recommended_profile)")
+end
+```
+
+### Profile Persistence
+
+Save and reuse profile data:
+
+```julia
+# Save profiles during PGO
+config = PGOConfig(
+    save_profiles = true,
+    profile_dir = ".pgo_cache"
+)
+
+result = pgo_compile(func, types, args, "dist", "app", config=config)
+
+# Profiles saved to .pgo_cache/
+# - function_name_1234.json
+# - function_name_5678.json
+```
+
+Profile file format:
+```json
+{
+  "function_name": "matrix_computation",
+  "type_signature": "(Int,)",
+  "timestamp": "2025-01-15T14:30:00",
+  "median_time_ns": 11800.0,
+  "binary_size": 19200,
+  "recommended_profile": "PROFILE_SPEED",
+  "hot_paths": [
+    "Long execution time detected - consider algorithm optimization"
+  ],
+  "opportunities": [
+    "Consider SIMD vectorization for speed"
+  ]
+}
+```
+
+### PGO Results
+
+PGOResult contains complete optimization history:
+
+```julia
+result = pgo_compile(func, types, args, "dist", "app")
+
+println("Function: $(result.function_name)")
+println("Iterations: $(result.iterations_completed)")
+println("Best profile: $(result.best_profile)")
+println("Best time: $(format_time(result.best_time_ns))")
+println("Improvement: $(result.improvement_pct)%")
+println("Binary size: $(format_bytes(result.final_binary_size))")
+println("PGO time: $(result.total_time_ms)ms")
+
+# Access individual profiles
+for profile in result.profiles
+    # Process profile data
+end
+```
+
+### Comparing PGO Results
+
+Compare optimization approaches:
+
+```julia
+# Baseline: manual optimization
+baseline = pgo_compile(func, types, args, "dist", "app_manual",
+    config=PGOConfig(target_metric=:speed, iterations=1))
+
+# Optimized: full PGO
+optimized = pgo_compile(func, types, args, "dist", "app_pgo",
+    config=PGOConfig(target_metric=:speed, iterations=5))
+
+# Compare
+compare_pgo_results(baseline, optimized)
+
+# Output
+PGO Comparison:
+======================================================================
+Performance:
+  Baseline:  15.2 us
+  Optimized: 11.8 us
+  Speedup:   1.29x
+
+Binary Size:
+  Baseline:  18.4 KB
+  Optimized: 19.2 KB
+  Ratio:     1.04x
+```
+
+### Integration with CI/CD
+
+Use PGO in continuous integration:
+
+```julia
+# In CI script
+config = PGOConfig(
+    target_metric = :speed,
+    iterations = 2,
+    benchmark_samples = 30,
+    save_profiles = true,
+    profile_dir = "ci_profiles"
+)
+
+result = pgo_compile(critical_func, types, args, "dist", "app", config=config)
+
+# Enforce performance requirements
+if result.improvement_pct < 10.0
+    @warn "PGO improvement below target: $(result.improvement_pct)%"
+end
+
+# Save profiles for tracking
+# Profiles in ci_profiles/ can be committed or archived
+```
+
+### Best Practices
+
+**Start with DEBUG Profile:**
+Use PROFILE_DEBUG for initial profiling to get accurate measurements:
+
+```julia
+config = PGOConfig(initial_profile = :PROFILE_DEBUG)
+```
+
+**Set Realistic Thresholds:**
+Set improvement thresholds based on function characteristics:
+
+```julia
+# For fast functions (< 1us): low threshold
+config = PGOConfig(improvement_threshold = 2.0)
+
+# For slow functions (> 100us): higher threshold
+config = PGOConfig(improvement_threshold = 10.0)
+```
+
+**Use Adequate Samples:**
+More samples provide more stable optimization decisions:
+
+```julia
+# Quick PGO
+config = PGOConfig(benchmark_samples = 20)
+
+# Thorough PGO
+config = PGOConfig(benchmark_samples = 100)
+```
+
+**Save Profiles in Version Control:**
+Track optimization history:
+
+```bash
+# Add profile directory to git
+git add .pgo/
+git commit -m "Add PGO profiles for optimized build"
+```
+
+**Iterate Until Convergence:**
+Let PGO run until improvements plateau:
+
+```julia
+config = PGOConfig(
+    iterations = 10,           # Allow many iterations
+    improvement_threshold = 1.0  # Stop at 1% improvement
+)
+```
+
+### Use Cases
+
+**1. Finding Optimal Settings:**
+```julia
+# Try different targets
+speed_result = pgo_compile(func, types, args, "dist", "app_speed",
+    config=PGOConfig(target_metric=:speed))
+
+size_result = pgo_compile(func, types, args, "dist", "app_size",
+    config=PGOConfig(target_metric=:size))
+
+# Choose best for your use case
+best = speed_result.improvement_pct > size_result.improvement_pct ?
+    :speed : :size
+```
+
+**2. Continuous Optimization:**
+```julia
+# Run PGO in CI on every commit
+result = pgo_compile(func, types, args, "dist", "app",
+    config=PGOConfig(save_profiles=true))
+
+# Track improvement over time
+println("Current: $(result.improvement_pct)%")
+```
+
+**3. Release Optimization:**
+```julia
+# Production release with maximum optimization
+config = PGOConfig(
+    target_metric = :speed,
+    iterations = 10,
+    benchmark_samples = 200,
+    improvement_threshold = 0.5  # Very fine-grained
+)
+
+result = pgo_compile(prod_func, types, args, "release", "app", config=config)
+```
+
+**4. Debugging Performance:**
+```julia
+# Identify why a function is slow
+profile = collect_profile(slow_func, types, args)
+
+println("Hot paths:")
+for path in profile.hot_paths
+    println("  - $path")
+end
+
+println("\nOpportunities:")
+for opp in profile.optimization_opportunities
+    println("  - $opp")
+end
+```
+
+### Integration with Comprehensive Reports
+
+Combine PGO with comprehensive analysis:
+
+```julia
+# Run PGO first
+pgo_result = pgo_compile(func, types, args, "dist", "app")
+
+# Then generate comprehensive report with best profile
+report = generate_comprehensive_report(
+    func,
+    types,
+    compile = true,
+    benchmark = true,
+    benchmark_args = args
+)
+
+# Report includes:
+# - PGO-optimized compilation
+# - Static analysis
+# - Runtime benchmarks
+# - Security checks
+# - All scores and metrics
 ```
 
 ---

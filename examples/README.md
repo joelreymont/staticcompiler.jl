@@ -77,6 +77,7 @@ Sophisticated features for power users:
 - **`wizard_demo.jl`** - Interactive optimization wizard
 - **`dependency_demo.jl`** - Dependency bloat analysis and minimization
 - **`comprehensive_report_demo.jl`** - Complete analysis reports and exports
+- **`pgo_demo.jl`** - Profile-guided optimization
 
 **Concepts covered:**
 - Interactive optimization guidance
@@ -88,6 +89,10 @@ Sophisticated features for power users:
 - Comprehensive reporting
 - Report export (JSON, Markdown)
 - Historical tracking
+- Profile-guided optimization (PGO)
+- Iterative compilation cycles
+- Runtime profiling
+- Hot path identification
 
 ### CI/CD Integration (`ci/`)
 
@@ -128,6 +133,7 @@ julia examples/analysis/memory_layout_demo.jl
 julia examples/advanced/wizard_demo.jl
 julia examples/advanced/dependency_demo.jl
 julia examples/advanced/comprehensive_report_demo.jl
+julia examples/advanced/pgo_demo.jl
 
 # CI/CD integration
 julia examples/ci/github_actions_example.jl
