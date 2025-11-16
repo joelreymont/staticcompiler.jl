@@ -667,3 +667,102 @@ end
     @test comparison.report1 isa StaticCompiler.DependencyReport
     @test comparison.report2 isa StaticCompiler.DependencyReport
 end
+
+@testset "Comprehensive Reporting" begin
+    # Test comprehensive report generation
+    report_func(x::Int) = x * x + 1
+
+    report = StaticCompiler.generate_comprehensive_report(
+        report_func,
+        (Int,),
+        compile=false,
+        verbose=false
+    )
+
+    @test report isa StaticCompiler.ComprehensiveReport
+    @test report.function_name == "report_func"
+    @test report.overall_score >= 0.0
+    @test report.overall_score <= 100.0
+    @test report.performance_score >= 0.0
+    @test report.performance_score <= 100.0
+    @test report.size_score >= 0.0
+    @test report.size_score <= 100.0
+    @test report.security_score >= 0.0
+    @test report.security_score <= 100.0
+
+    # Test JSON export
+    json_file = joinpath(workdir, "test_report.json")
+    StaticCompiler.export_report_json(report, json_file)
+    @test isfile(json_file)
+    @test filesize(json_file) > 0
+
+    # Test Markdown export
+    md_file = joinpath(workdir, "test_report.md")
+    StaticCompiler.export_report_markdown(report, md_file)
+    @test isfile(md_file)
+    @test filesize(md_file) > 0
+    
+    # Verify markdown contains expected sections
+    md_content = read(md_file, String)
+    @test occursin("# Compilation Report", md_content)
+    @test occursin("## Scores", md_content)
+
+    # Test report comparison
+    report2 = StaticCompiler.generate_comprehensive_report(
+        report_func,
+        (Int,),
+        compile=false,
+        verbose=false
+    )
+    
+    # Should not error
+    StaticCompiler.compare_reports(report, report2, verbose=false)
+end
+
+@testset "CI Integration" begin
+    # Test CI configuration
+    config = StaticCompiler.CIConfig(
+        fail_on_allocations=false,
+        fail_on_security_issues=true,
+        max_binary_size_kb=1000,
+        min_performance_score=50.0,
+        min_security_score=80.0,
+        generate_reports=true,
+        report_formats=[:json, :markdown]
+    )
+
+    @test config.max_binary_size_kb == 1000
+    @test config.min_performance_score == 50.0
+    @test config.fail_on_security_issues == true
+
+    # Test CI environment detection
+    ci_info = StaticCompiler.detect_ci_environment()
+    @test haskey(ci_info, :detected)
+    @test ci_info.detected isa Bool
+
+    # Test badge generation
+    test_report = StaticCompiler.generate_comprehensive_report(
+        x -> x + 1,
+        (Int,),
+        compile=false,
+        verbose=false
+    )
+    
+    badge_info = StaticCompiler.generate_ci_badge(test_report)
+    @test length(badge_info) == 3
+    @test badge_info[1] isa String  # status
+    @test badge_info[2] isa String  # color
+    @test badge_info[3] isa Int     # score
+
+    # Test CI summary table
+    summary = StaticCompiler.ci_summary_table(test_report)
+    @test summary isa String
+    @test occursin("Overall", summary)
+    @test occursin("Performance", summary)
+
+    # Test example workflow constants
+    @test StaticCompiler.GITHUB_ACTIONS_EXAMPLE isa String
+    @test occursin("GitHub Actions", StaticCompiler.GITHUB_ACTIONS_EXAMPLE)
+    @test StaticCompiler.GITLAB_CI_EXAMPLE isa String
+    @test occursin("GitLab", StaticCompiler.GITLAB_CI_EXAMPLE)
+end
