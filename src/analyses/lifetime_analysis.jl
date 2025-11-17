@@ -25,6 +25,7 @@ struct LifetimeAnalysisReport
     potential_double_frees::Int
     proper_frees::Int
     function_name::Symbol
+    allocations_freed::Int
 end
 
 """
@@ -175,7 +176,8 @@ function analyze_lifetimes(f::Function, types::Tuple)
         max(0, leak_count),
         double_free_count,
         proper_count,
-        fname
+        fname,
+        proper_count  # allocations_freed is same as proper_frees
     )
 end
 
