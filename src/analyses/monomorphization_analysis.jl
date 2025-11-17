@@ -60,12 +60,9 @@ function analyze_monomorphization(f::Function, types::Tuple)
             push!(abstract_params, AbstractParameterInfo(i, T, true))
         else
             # Check for nested abstract types (e.g., Vector{Number})
-            if T isa DataType && !isempty(T.parameters)
-                for param in T.parameters
-                    if param isa Type && isabstracttype(param)
-                        push!(abstract_params, AbstractParameterInfo(i, param, true))
-                    end
-                end
+            nested_abstracts = find_nested_abstract_types(T)
+            for abstract_type in nested_abstracts
+                push!(abstract_params, AbstractParameterInfo(i, abstract_type, true))
             end
         end
     end
@@ -79,6 +76,29 @@ function analyze_monomorphization(f::Function, types::Tuple)
         abstract_params,
         opportunities
     )
+end
+
+"""
+    find_nested_abstract_types(T::Type) -> Vector{Type}
+
+Recursively find all abstract types nested within a type's parameters.
+"""
+function find_nested_abstract_types(T::Type)
+    abstract_types = Type[]
+
+    if T isa DataType && !isempty(T.parameters)
+        for param in T.parameters
+            if param isa Type
+                if isabstracttype(param)
+                    push!(abstract_types, param)
+                end
+                # Recursively check nested parameters
+                append!(abstract_types, find_nested_abstract_types(param))
+            end
+        end
+    end
+
+    return abstract_types
 end
 
 """

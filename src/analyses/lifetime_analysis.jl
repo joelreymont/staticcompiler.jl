@@ -74,7 +74,41 @@ function analyze_lifetimes(f::Function, types::Tuple)
             allocation_vars = Dict{Any, Int}()  # var => allocation_index
             freed_vars = Set{Any}()
 
+            # Also track previous statement to detect constructor patterns
+            prev_stmt = nothing
+
             for (idx, stmt) in enumerate(ir.code)
+                # Detect MallocArray-like type constructors
+                # Pattern: Core.apply_type(MallocArray, T) followed by constructor call
+                if isa(stmt, Expr) && stmt.head == :call
+                    if length(stmt.args) >= 2 && stmt.args[1] == GlobalRef(Core, :apply_type)
+                        # Check if it's MallocArray or similar
+                        if length(stmt.args) >= 2
+                            type_arg = stmt.args[2]
+                            if isa(type_arg, GlobalRef) && occursin("Malloc", string(type_arg.name))
+                                prev_stmt = idx  # Remember this for next iteration
+                            end
+                        end
+                    end
+                end
+
+                # Check if current statement might be calling the type from prev_stmt
+                if !isnothing(prev_stmt) && isa(stmt, Expr)
+                    # Constructor call - record as allocation
+                    allocation_vars[idx] = length(allocations) + 1
+
+                    alloc_site = AllocationSite(
+                        "line $idx",
+                        :malloc_array,
+                        false,  # Not freed yet
+                        true,   # Assume leak until proven otherwise
+                        false   # No double free
+                    )
+                    push!(allocations, alloc_site)
+                    leak_count += 1
+                    prev_stmt = nothing  # Reset
+                end
+
                 if isa(stmt, Expr) && stmt.head == :call && length(stmt.args) >= 1
                     func = stmt.args[1]
 
@@ -193,5 +227,44 @@ function get_allocation_type(func)
     end
 end
 
+"""
+    suggest_lifetime_improvements(report::LifetimeAnalysisReport)
+
+Suggest improvements for lifetime management based on analysis report.
+Returns a vector of suggestions (strings).
+"""
+function suggest_lifetime_improvements(report::LifetimeAnalysisReport)
+    suggestions = String[]
+
+    # Check for allocations without corresponding frees
+    for alloc in report.allocations
+        if !alloc.freed
+            push!(suggestions, "Add free() for allocation at $(alloc.location)")
+        end
+    end
+
+    return suggestions
+end
+
+"""
+    insert_auto_frees(report::LifetimeAnalysisReport)
+
+Generate automatic free insertions based on lifetime analysis.
+Returns a vector of suggested free insertion points.
+"""
+function insert_auto_frees(report::LifetimeAnalysisReport)
+    auto_frees = []
+
+    # Find allocations that need frees (not freed and potential leak)
+    for alloc in report.allocations
+        if !alloc.freed && alloc.potential_leak
+            push!(auto_frees, (location=alloc.location, type=alloc.type))
+        end
+    end
+
+    return auto_frees
+end
+
 # Export the analysis function
 export analyze_lifetimes, LifetimeAnalysisReport, AllocationSite
+export suggest_lifetime_improvements, insert_auto_frees

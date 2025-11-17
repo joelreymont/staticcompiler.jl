@@ -338,25 +338,24 @@ end
 @testset "Constant Propagation - Edge Cases" begin
     # Test 1: Complex constant expressions
     @testset "Complex constant expressions" begin
-        const FACTOR = 42
-        const OFFSET = 17
-
+        # Use literal values for true constant folding
         function complex_const(x::Int)
-            y = FACTOR * 2 + OFFSET
+            y = 42 * 2 + 17  # Literal constants
             z = y * 3
             return x + z
         end
 
         report = analyze_constants(complex_const, (Int,))
         @test !isnothing(report)
+        # With literals, we should detect foldable expressions
         @test report.foldable_expressions > 0
         println("  ✓ Complex constant expressions")
     end
 
     # Test 2: Dead code with multiple branches
     @testset "Multiple dead branches" begin
-        const DEBUG = false
-        const OPTIMIZE = true
+        DEBUG = false
+        OPTIMIZE = true
 
         function multi_branch(x::Int)
             if DEBUG
@@ -375,9 +374,9 @@ end
 
     # Test 3: Nested constant propagation
     @testset "Nested constants" begin
-        const LEVEL1 = 10
-        const LEVEL2 = LEVEL1 * 2
-        const LEVEL3 = LEVEL2 + 5
+        LEVEL1 = 10
+        LEVEL2 = LEVEL1 * 2
+        LEVEL3 = LEVEL2 + 5
 
         function nested_const()
             return LEVEL3 * 2

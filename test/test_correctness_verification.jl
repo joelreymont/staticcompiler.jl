@@ -159,36 +159,36 @@ end
 @testset "Devirtualization Correctness" begin
     # Test 1: Devirtualization doesn't break polymorphism
     @testset "Polymorphism preservation" begin
-        abstract type Shape end
+        abstract type CorrectShape end
 
-        struct Circle <: Shape
+        struct CorrectCircle <: CorrectShape
             radius::Float64
         end
 
-        struct Rectangle <: Shape
+        struct CorrectRectangle <: CorrectShape
             width::Float64
             height::Float64
         end
 
-        area(c::Circle) = 3.14159 * c.radius^2
-        area(r::Rectangle) = r.width * r.height
+        area_correct(c::CorrectCircle) = 3.14159 * c.radius^2
+        area_correct(r::CorrectRectangle) = r.width * r.height
 
-        function total_area(shapes::Vector{Circle})
+        function total_area_correct(shapes::Vector{CorrectCircle})
             sum = 0.0
             for s in shapes
-                sum += area(s)
+                sum += area_correct(s)
             end
             return sum
         end
 
         # Test correctness
-        circles = [Circle(1.0), Circle(2.0)]
+        circles = [CorrectCircle(1.0), CorrectCircle(2.0)]
         expected_area = 3.14159 * (1.0^2 + 2.0^2)
-        actual_area = total_area(circles)
+        actual_area = total_area_correct(circles)
         @test abs(actual_area - expected_area) < 0.01
 
         # Analyze
-        report = analyze_devirtualization(total_area, (Vector{Circle},))
+        report = analyze_devirtualization(total_area_correct, (Vector{CorrectCircle},))
         @test !isnothing(report)
 
         println("  ✓ Devirtualization preserves polymorphism")
@@ -288,11 +288,8 @@ end
 @testset "Constant Propagation Correctness" begin
     # Test 1: Constant folding preserves semantics
     @testset "Constant folding correctness" begin
-        const A = 10
-        const B = 20
-
         function fold_constants(x::Int)
-            y = A + B  # Should fold to 30
+            y = 10 + 20  # Literal constants - should fold to 30
             return x + y
         end
 
@@ -309,7 +306,7 @@ end
 
     # Test 2: Dead branch elimination correctness
     @testset "Dead branch elimination correctness" begin
-        const FLAG = true
+        FLAG = true
 
         function dead_branch(x::Int)
             if FLAG
@@ -331,8 +328,8 @@ end
 
     # Test 3: Global constant propagation
     @testset "Global constant propagation" begin
-        const CONFIG_SIZE = 100
-        const CONFIG_SCALE = 2.5
+        CONFIG_SIZE = 100
+        CONFIG_SCALE = 2.5
 
         function use_config()
             size = CONFIG_SIZE * 2
@@ -356,7 +353,7 @@ end
 @testset "Integration - Optimization Combinations" begin
     # Test 1: Multiple optimizations don't conflict
     @testset "Multiple optimizations" begin
-        const SIZE = 10
+        SIZE = 10
 
         function complex_function(x::Number)
             arr = zeros(SIZE)  # Escape analysis

@@ -23,10 +23,12 @@ export StaticTarget
 include("analyses/analyses.jl")
 using .Analyses
 export analyze_escapes, EscapeAnalysisReport, AllocationInfo
+export suggest_stack_promotion
 export analyze_monomorphization, MonomorphizationReport, AbstractParameterInfo
 export analyze_devirtualization, DevirtualizationReport, CallSiteInfo
 export analyze_constants, ConstantPropagationReport, ConstantInfo
 export analyze_lifetimes, LifetimeAnalysisReport, AllocationSite
+export suggest_lifetime_improvements, insert_auto_frees
 
 include("interpreter.jl")
 include("target.jl")

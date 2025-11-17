@@ -200,5 +200,25 @@ function estimate_allocation_size(args)
     return base_size
 end
 
+"""
+    suggest_stack_promotion(report::EscapeAnalysisReport)
+
+Suggest allocations that could be promoted to the stack based on escape analysis.
+Returns a vector of suggestions (strings).
+"""
+function suggest_stack_promotion(report::EscapeAnalysisReport)
+    suggestions = String[]
+
+    # Find allocations that don't escape and could be stack-promoted
+    for alloc in report.allocations
+        if !alloc.escapes && alloc.size > 0
+            push!(suggestions, "Stack-promote allocation of $(alloc.type) at $(alloc.location)")
+        end
+    end
+
+    return suggestions
+end
+
 # Export the analysis function
 export analyze_escapes, EscapeAnalysisReport, AllocationInfo
+export suggest_stack_promotion
