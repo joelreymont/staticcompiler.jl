@@ -23,6 +23,8 @@ struct DevirtualizationReport
     total_dynamic_calls::Int
     devirtualizable_calls::Int
     function_name::Symbol
+    total_call_sites::Int
+    virtual_call_sites::Int
 end
 
 """
@@ -101,7 +103,11 @@ function analyze_devirtualization(f::Function, types::Tuple)
     total_calls = length(call_sites)
     devirt_calls = count(c -> c.can_devirtualize, call_sites)
 
-    return DevirtualizationReport(call_sites, total_calls, devirt_calls, fname)
+    # Calculate total call sites and virtual call sites
+    total_call_sites = total_calls
+    virtual_call_sites = count(c -> c.num_targets > 1, call_sites)
+
+    return DevirtualizationReport(call_sites, total_calls, devirt_calls, fname, total_call_sites, virtual_call_sites)
 end
 
 """

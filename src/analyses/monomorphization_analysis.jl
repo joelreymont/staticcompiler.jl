@@ -22,6 +22,8 @@ struct MonomorphizationReport
     function_name::Symbol
     abstract_parameters::Vector{AbstractParameterInfo}
     optimization_opportunities::Int
+    can_fully_monomorphize::Bool
+    specialization_factor::Float64
 end
 
 """
@@ -70,11 +72,26 @@ function analyze_monomorphization(f::Function, types::Tuple)
     has_abstract = !isempty(abstract_params)
     opportunities = length(abstract_params)
 
+    # Determine if can fully monomorphize
+    # Can monomorphize if all abstract types can be replaced with concrete ones
+    can_monomorphize = has_abstract  # If has abstract types, it CAN be monomorphized
+
+    # Specialization factor: ratio of concrete to total types
+    # 1.0 means fully concrete, 0.0 means fully abstract
+    total_params = length(types)
+    specialization = if total_params > 0
+        (total_params - opportunities) / total_params
+    else
+        1.0  # No parameters means fully specialized
+    end
+
     return MonomorphizationReport(
         has_abstract,
         fname,
         abstract_params,
-        opportunities
+        opportunities,
+        can_monomorphize,
+        specialization
     )
 end
 

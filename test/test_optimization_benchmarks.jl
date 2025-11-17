@@ -6,6 +6,7 @@ using Test
 using StaticCompiler
 using StaticTools
 using Statistics
+using StaticArrays
 
 println("="^70)
 println("OPTIMIZATION IMPACT BENCHMARKS")
@@ -79,7 +80,6 @@ end
         end
 
         # Optimized: using StaticArrays (recommended by escape analysis)
-        using StaticArrays
         function sum_alloc_opt(n::Int)
             arr = @MVector zeros(100)
             for i in 1:100
@@ -256,20 +256,20 @@ end
     @testset "Method dispatch patterns" begin
         println()
 
-        abstract type Shape end
-        struct Circle <: Shape
+        abstract type BenchmarkShape end
+        struct BenchmarkCircle <: BenchmarkShape
             radius::Float64
         end
 
-        area(c::Circle) = 3.14159 * c.radius^2
+        area(c::BenchmarkCircle) = 3.14159 * c.radius^2
 
-        function compute_area(shape::Shape)
+        function compute_area(shape::BenchmarkShape)
             return area(shape)
         end
 
         # Analyze with abstract vs concrete
-        report_abstract = analyze_devirtualization(compute_area, (Shape,))
-        report_concrete = analyze_devirtualization(compute_area, (Circle,))
+        report_abstract = analyze_devirtualization(compute_area, (BenchmarkShape,))
+        report_concrete = analyze_devirtualization(compute_area, (BenchmarkCircle,))
 
         println("   Abstract type analysis:")
         println("      Can devirtualize: $(report_abstract.total_call_sites > 0)")
@@ -293,7 +293,7 @@ end
     @testset "Dead code elimination" begin
         println()
 
-        const FEATURE_ENABLED = false
+        FEATURE_ENABLED = false
 
         function with_dead_code(x::Int)
             result = x * 2
