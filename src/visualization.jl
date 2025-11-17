@@ -1,6 +1,8 @@
 # Visualization Tools for Benchmark Results
 # Simple text-based visualization for benchmark data
 
+using Dates
+
 """
     plot_size_reduction(results::Dict)
 
