@@ -109,7 +109,7 @@ using StaticTools
 
         # Calculate force between two particles (gravitational)
         function calculate_force(p1::Particle, p2::Particle)
-            const G = 6.67430e-11  # Gravitational constant
+            G = 6.67430e-11  # Gravitational constant
 
             dx = p2.x - p1.x
             dy = p2.y - p1.y

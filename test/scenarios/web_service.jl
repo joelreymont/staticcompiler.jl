@@ -105,8 +105,8 @@ using StaticTools
         # Simple token bucket rate limiter check
         function check_rate_limit(current_tokens::Int, last_refill::Int64,
                                  now::Int64, refill_rate::Int)
-            const MAX_TOKENS = 100
-            const REFILL_INTERVAL = 1000  # milliseconds
+            MAX_TOKENS = 100
+            REFILL_INTERVAL = 1000  # milliseconds
 
             # Calculate tokens to add
             time_elapsed = now - last_refill
@@ -274,9 +274,9 @@ using StaticTools
 
         # Handle different error types
         function handle_error(error_code::Int)
-            const ERROR_RATE_LIMIT = 429
-            const ERROR_NOT_FOUND = 404
-            const ERROR_SERVER = 500
+            ERROR_RATE_LIMIT = 429
+            ERROR_NOT_FOUND = 404
+            ERROR_SERVER = 500
 
             message = if error_code == ERROR_RATE_LIMIT
                 "Rate limit exceeded"

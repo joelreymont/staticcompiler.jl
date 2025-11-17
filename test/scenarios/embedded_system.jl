@@ -154,7 +154,7 @@ using StaticTools
         function embedded_control_loop(sensor_value::Int16, setpoint::Int16)
             error = setpoint - sensor_value
             # Simple proportional control
-            const KP = 2
+            KP = 2
             output = KP * error
             return clamp(output, -1000, 1000)
         end
