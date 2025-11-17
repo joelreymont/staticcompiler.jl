@@ -46,12 +46,14 @@ export benchmark_analysis, benchmark_compilation, compare_performance
 export track_quality_over_time, plot_quality_history, BenchmarkResult
 export start_interactive, interactive_analyze, interactive_suggest, interactive_compare
 export AnalysisSession
+export generate_c_header, julia_to_c_type
 
 include("interpreter.jl")
 include("target.jl")
 include("pointer_warning.jl")
 include("quirks.jl")
 include("dllexport.jl")
+include("header_generation.jl")
 
 fix_name(f::Function) = fix_name(string(nameof(f)))
 fix_name(s) = String(GPUCompiler.safe_name(s))
@@ -259,6 +261,7 @@ compile_shlib(f::Function, types::Tuple, [path::String=pwd()], [name::String=str
     min_score::Int=80,
     suggest_fixes::Bool=true,
     export_analysis::Bool=false,
+    generate_header::Bool=false,
     kwargs...)
 
 compile_shlib(funcs::Array, [path::String=pwd()];
@@ -271,6 +274,7 @@ compile_shlib(funcs::Array, [path::String=pwd()];
     min_score::Int=80,
     suggest_fixes::Bool=true,
     export_analysis::Bool=false,
+    generate_header::Bool=false,
     kwargs...)
 ```
 As `compile_executable`, but compiling to a standalone `.dylib`/`.so` shared library.
@@ -285,6 +289,15 @@ Set `verify=true` to automatically analyze code quality before compilation:
 - `min_score::Int=80`: Minimum readiness score (0-100) required to proceed
 - `suggest_fixes::Bool=true`: Show optimization suggestions if analysis fails
 - `export_analysis::Bool=false`: Export analysis report to JSON file
+
+## C Header Generation
+
+Set `generate_header=true` to automatically generate a C header file:
+- Creates a `.h` file alongside the compiled library
+- Contains function declarations for all compiled functions
+- Includes proper C types (int64_t, double, etc.)
+- Works with C, C++, and Rust
+- Respects the `demangle` setting for function names
 
 ### Examples
 ```julia
@@ -314,6 +327,14 @@ Analyzing test...
 ✅ test is ready for compilation (score: 95/100)
 Compiling...
 "/Users/user/test.dylib"
+
+# With C header generation:
+julia> compile_shlib(test, (Int,), "./", "test", generate_header=true)
+Generated C header: ./test.h
+"/Users/user/test.dylib"
+
+julia> # The generated test.h contains:
+julia> # double test(int64_t arg0);
 ```
 """
 function compile_shlib(f::Function, types=(), path::String=pwd(), name=fix_name(f);
@@ -323,9 +344,10 @@ function compile_shlib(f::Function, types=(), path::String=pwd(), name=fix_name(
         min_score::Int=80,
         suggest_fixes::Bool=true,
         export_analysis::Bool=false,
+        generate_header::Bool=false,
         kwargs...
     )
-    compile_shlib(((f, types),), path; filename, target, verify, min_score, suggest_fixes, export_analysis, kwargs...)
+    compile_shlib(((f, types),), path; filename, target, verify, min_score, suggest_fixes, export_analysis, generate_header, kwargs...)
 end
 # As above, but taking an array of functions and returning a single shlib
 function compile_shlib(funcs::Union{Array,Tuple}, path::String=pwd();
@@ -338,6 +360,7 @@ function compile_shlib(funcs::Union{Array,Tuple}, path::String=pwd();
         min_score::Int=80,
         suggest_fixes::Bool=true,
         export_analysis::Bool=false,
+        generate_header::Bool=false,
         kwargs...
     )
 
@@ -426,7 +449,19 @@ function compile_shlib(funcs::Union{Array,Tuple}, path::String=pwd();
 
     generate_shlib(funcs, path, filename; demangle, cflags, target, llvm_to_clang, kwargs...)
 
-    joinpath(abspath(path), filename * "." * Libdl.dlext)
+    lib_path = joinpath(abspath(path), filename * "." * Libdl.dlext)
+
+    # Generate C header if requested
+    if generate_header
+        try
+            header_path = generate_c_header(funcs, path, filename; demangle)
+            println("Generated C header: $header_path")
+        catch e
+            @warn "Failed to generate C header" exception=e
+        end
+    end
+
+    lib_path
 end
 
 
