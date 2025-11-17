@@ -66,12 +66,23 @@ compile_executable(f::Function, types::Tuple, path::String, [name::String=string
     target::StaticTarget=StaticTarget(),
     llvm_to_clang = Sys.iswindows(),
     method_table=StaticCompiler.method_table,
+    verify::Bool=false,
+    min_score::Int=80,
+    suggest_fixes::Bool=true,
+    export_analysis::Bool=false,
     kwargs...
 )
 ```
 Attempt to compile a standalone executable that runs function `f` with a type signature given by the tuple of `types`.
 If there are extra methods you would like to protect from name mangling in the produced binary for whatever reason,
 you can provide them as a vector of tuples of functions and types, i.e. `[(f1, types1), (f2, types2), ...]`
+
+## Pre-Compilation Analysis
+
+Set `verify=true` to automatically analyze code quality before compilation:
+- `min_score::Int=80`: Minimum readiness score (0-100) required to proceed
+- `suggest_fixes::Bool=true`: Show optimization suggestions if analysis fails
+- `export_analysis::Bool=false`: Export analysis report to JSON file
 
 ### Examples
 ```julia
@@ -130,8 +141,12 @@ Hello, world!
 """
 function compile_executable(f::Function, types=(), path::String=pwd(), name=fix_name(f);
                             also_expose=Tuple{Function, Tuple{DataType}}[], target::StaticTarget=StaticTarget(),
+                            verify::Bool=false,
+                            min_score::Int=80,
+                            suggest_fixes::Bool=true,
+                            export_analysis::Bool=false,
                             kwargs...)
-    compile_executable(vcat([(f, types)], also_expose), path, name; target, kwargs...)
+    compile_executable(vcat([(f, types)], also_expose), path, name; target, verify, min_score, suggest_fixes, export_analysis, kwargs...)
 end
 
 function compile_executable(funcs::Union{Array,Tuple}, path::String=pwd(), name=fix_name(first(first(funcs)));
@@ -140,8 +155,83 @@ function compile_executable(funcs::Union{Array,Tuple}, path::String=pwd(), name=
         cflags = ``,
         target::StaticTarget=StaticTarget(),
         llvm_to_clang = Sys.iswindows(),
+        verify::Bool=false,
+        min_score::Int=80,
+        suggest_fixes::Bool=true,
+        export_analysis::Bool=false,
         kwargs...
     )
+
+    # Pre-compilation analysis if requested
+    if verify
+        println("Running pre-compilation analysis...")
+        println()
+
+        failed_funcs = []
+        all_reports = []
+
+        for (i, func) in enumerate(funcs)
+            f, types = func
+            fname = string(nameof(f))
+
+            print("  [$i/$(length(funcs))] Analyzing $fname... ")
+            report = quick_check(f, types)
+            push!(all_reports, (fname, types, report))
+
+            if report.score < min_score
+                println("❌ (score: $(report.score)/$min_score)")
+                push!(failed_funcs, (fname, types, report))
+            else
+                println("✅ (score: $(report.score)/100)")
+            end
+        end
+
+        println()
+
+        # Export reports if requested
+        if export_analysis
+            for (fname, types, report) in all_reports
+                report_path = joinpath(path, "$(fname)_analysis.json")
+                try
+                    mkpath(path)
+                    export_report(report, report_path)
+                catch e
+                    @warn "Could not export analysis report for $fname" exception=e
+                end
+            end
+        end
+
+        # Handle failures
+        if !isempty(failed_funcs)
+            println("❌ Pre-compilation verification failed!")
+            println()
+            println("$(length(failed_funcs)) function(s) below minimum score ($min_score):")
+            println()
+
+            for (fname, types, report) in failed_funcs
+                println("  • $fname$types: score $(report.score)/$min_score")
+                if !isempty(report.issues)
+                    for issue in report.issues
+                        println("    - $issue")
+                    end
+                end
+                println()
+            end
+
+            if suggest_fixes
+                println("💡 Get optimization suggestions:")
+                for (fname, types, _) in failed_funcs
+                    println("   suggest_optimizations($fname, $types)")
+                end
+                println()
+            end
+
+            error("Compilation aborted: $(length(failed_funcs)) function(s) failed verification (score < $min_score)")
+        end
+
+        println("✅ All functions passed verification (min score: $min_score)")
+        println()
+    end
 
     (f, types) = funcs[1]
     tt = Base.to_tuple_type(types)
@@ -165,6 +255,10 @@ compile_shlib(f::Function, types::Tuple, [path::String=pwd()], [name::String=str
     cflags=``,
     method_table=StaticCompiler.method_table,
     target::StaticTarget=StaticTarget(),
+    verify::Bool=false,
+    min_score::Int=80,
+    suggest_fixes::Bool=true,
+    export_analysis::Bool=false,
     kwargs...)
 
 compile_shlib(funcs::Array, [path::String=pwd()];
@@ -173,6 +267,10 @@ compile_shlib(funcs::Array, [path::String=pwd()];
     cflags=``,
     method_table=StaticCompiler.method_table,
     target::StaticTarget=StaticTarget(),
+    verify::Bool=false,
+    min_score::Int=80,
+    suggest_fixes::Bool=true,
+    export_analysis::Bool=false,
     kwargs...)
 ```
 As `compile_executable`, but compiling to a standalone `.dylib`/`.so` shared library.
@@ -180,6 +278,13 @@ As `compile_executable`, but compiling to a standalone `.dylib`/`.so` shared lib
 Arguments and returned values from `compile_shlib` must be native objects such as `Int`, `Float64`, or `Ptr`. They cannot be things like `Tuple{Int, Int}` because that is not natively sized. Such objects need to be passed by reference instead of by value.
 
 If `demangle` is set to `false`, compiled function names are prepended with "julia_".
+
+## Pre-Compilation Analysis
+
+Set `verify=true` to automatically analyze code quality before compilation:
+- `min_score::Int=80`: Minimum readiness score (0-100) required to proceed
+- `suggest_fixes::Bool=true`: Show optimization suggestions if analysis fails
+- `export_analysis::Bool=false`: Export analysis report to JSON file
 
 ### Examples
 ```julia
@@ -202,14 +307,25 @@ julia> test(100_000)
 
 julia> ccall(("test", "test.dylib"), Float64, (Int64,), 100_000)
 5.2564961094956075
+
+# With automatic verification:
+julia> compile_shlib(test, (Int,), verify=true, min_score=90)
+Analyzing test...
+✅ test is ready for compilation (score: 95/100)
+Compiling...
+"/Users/user/test.dylib"
 ```
 """
 function compile_shlib(f::Function, types=(), path::String=pwd(), name=fix_name(f);
         filename=name,
         target::StaticTarget=StaticTarget(),
+        verify::Bool=false,
+        min_score::Int=80,
+        suggest_fixes::Bool=true,
+        export_analysis::Bool=false,
         kwargs...
     )
-    compile_shlib(((f, types),), path; filename, target, kwargs...)
+    compile_shlib(((f, types),), path; filename, target, verify, min_score, suggest_fixes, export_analysis, kwargs...)
 end
 # As above, but taking an array of functions and returning a single shlib
 function compile_shlib(funcs::Union{Array,Tuple}, path::String=pwd();
@@ -218,8 +334,85 @@ function compile_shlib(funcs::Union{Array,Tuple}, path::String=pwd();
         cflags = ``,
         target::StaticTarget=StaticTarget(),
         llvm_to_clang = Sys.iswindows(),
+        verify::Bool=false,
+        min_score::Int=80,
+        suggest_fixes::Bool=true,
+        export_analysis::Bool=false,
         kwargs...
     )
+
+    # Pre-compilation analysis if requested
+    if verify
+        println("Running pre-compilation analysis...")
+        println()
+
+        failed_funcs = []
+        all_reports = []
+
+        for (i, func) in enumerate(funcs)
+            f, types = func
+            fname = string(nameof(f))
+
+            print("  [$i/$(length(funcs))] Analyzing $fname... ")
+            report = quick_check(f, types)
+            push!(all_reports, (fname, types, report))
+
+            if report.score < min_score
+                println("❌ (score: $(report.score)/$min_score)")
+                push!(failed_funcs, (fname, types, report))
+            else
+                println("✅ (score: $(report.score)/100)")
+            end
+        end
+
+        println()
+
+        # Export reports if requested
+        if export_analysis
+            for (fname, types, report) in all_reports
+                report_path = joinpath(path, "$(fname)_analysis.json")
+                try
+                    mkpath(path)
+                    export_report(report, report_path)
+                catch e
+                    @warn "Could not export analysis report for $fname" exception=e
+                end
+            end
+        end
+
+        # Handle failures
+        if !isempty(failed_funcs)
+            println("❌ Pre-compilation verification failed!")
+            println()
+            println("$(length(failed_funcs)) function(s) below minimum score ($min_score):")
+            println()
+
+            for (fname, types, report) in failed_funcs
+                println("  • $fname$types: score $(report.score)/$min_score")
+                if !isempty(report.issues)
+                    for issue in report.issues
+                        println("    - $issue")
+                    end
+                end
+                println()
+            end
+
+            if suggest_fixes
+                println("💡 Get optimization suggestions:")
+                for (fname, types, _) in failed_funcs
+                    println("   suggest_optimizations($fname, $types)")
+                end
+                println()
+            end
+
+            error("Compilation aborted: $(length(failed_funcs)) function(s) failed verification (score < $min_score)")
+        end
+
+        println("✅ All functions passed verification (min score: $min_score)")
+        println()
+    end
+
+    # Standard type checking
     for func in funcs
         f, types = func
         tt = Base.to_tuple_type(types)
