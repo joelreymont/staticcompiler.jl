@@ -23,3 +23,23 @@ end
 if GROUP == "Integration" || GROUP == "All"
     include("testintegration.jl")
 end
+
+# Advanced Compiler Optimizations Tests
+if GROUP == "Optimizations" || GROUP == "All"
+    println("\n" * "="^70)
+    println("Running Advanced Optimization Tests")
+    println("="^70)
+
+    include("test_advanced_optimizations.jl")
+    include("test_optimization_edge_cases.jl")
+    include("test_correctness_verification.jl")
+
+    println("\n" * "="^70)
+    println("Running Optimization Benchmarks")
+    println("="^70)
+    include("test_optimization_benchmarks.jl")
+
+    # Generate coverage report
+    include("test_coverage_report.jl")
+    coverage = generate_coverage_report()
+end
