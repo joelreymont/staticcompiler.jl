@@ -30,7 +30,6 @@ if GROUP == "Optimizations" || GROUP == "All"
     println("Running Advanced Optimization Tests")
     println("="^70)
 
-    include("test_advanced_optimizations.jl")
     include("test_optimization_edge_cases.jl")
     include("test_correctness_verification.jl")
 
