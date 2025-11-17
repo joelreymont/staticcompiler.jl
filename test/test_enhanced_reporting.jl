@@ -4,7 +4,7 @@
 using Test
 using StaticCompiler
 import Dates
-import Dates: DateTime
+import Dates: DateTime, now
 
 """
     TestReport
