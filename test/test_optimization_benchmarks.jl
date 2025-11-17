@@ -328,8 +328,8 @@ end
     @testset "Constant folding" begin
         println()
 
-        const CONFIG_SIZE = 1024
-        const CONFIG_MULTIPLIER = 3
+        CONFIG_SIZE = 1024
+        CONFIG_MULTIPLIER = 3
 
         function with_constants(n::Int)
             buffer_size = CONFIG_SIZE * CONFIG_MULTIPLIER
