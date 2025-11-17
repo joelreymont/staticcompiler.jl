@@ -2,6 +2,7 @@
 # Validates code quality, best practices, and potential issues
 
 using Test
+using StaticCompiler
 
 println("\n" * "="^70)
 println("CODE QUALITY CHECKS")
@@ -12,14 +13,17 @@ println()
     # Note: Aqua.jl integration would go here
     # For now, we'll implement basic quality checks
 
+    # Get package root directory
+    pkg_root = pkgdir(StaticCompiler)
+
     @testset "Project structure" begin
         println("📋 Checking project structure...")
 
         # Check essential files exist
-        @test isfile("Project.toml")
-        @test isfile("README.md")
-        @test isdir("src")
-        @test isdir("test")
+        @test isfile(joinpath(pkg_root, "Project.toml"))
+        @test isfile(joinpath(pkg_root, "README.md"))
+        @test isdir(joinpath(pkg_root, "src"))
+        @test isdir(joinpath(pkg_root, "test"))
 
         println("  ✓ Project structure valid")
     end
@@ -27,7 +31,8 @@ println()
     @testset "Source file organization" begin
         println("📁 Checking source files...")
 
-        src_files = filter(f -> endswith(f, ".jl"), readdir("src"))
+        src_dir = joinpath(pkg_root, "src")
+        src_files = filter(f -> endswith(f, ".jl"), readdir(src_dir))
         @test !isempty(src_files)
         @test "StaticCompiler.jl" in src_files
 
@@ -37,7 +42,8 @@ println()
     @testset "Test file organization" begin
         println("📁 Checking test files...")
 
-        test_files = filter(f -> endswith(f, ".jl"), readdir("test"))
+        test_dir = joinpath(pkg_root, "test")
+        test_files = filter(f -> endswith(f, ".jl"), readdir(test_dir))
         @test !isempty(test_files)
         @test "runtests.jl" in test_files
 
@@ -48,11 +54,12 @@ println()
         println("📚 Checking documentation...")
 
         # Check for key documentation
-        @test isfile("README.md")
+        @test isfile(joinpath(pkg_root, "README.md"))
 
         # Check for guides
-        if isdir("docs/guides")
-            guides = readdir("docs/guides")
+        guides_dir = joinpath(pkg_root, "docs", "guides")
+        if isdir(guides_dir)
+            guides = readdir(guides_dir)
             println("  Found $(length(guides)) guide files")
         end
 
@@ -63,7 +70,8 @@ println()
         println("🔍 Checking for code smells...")
 
         # Check that source files aren't too large
-        for file in readdir("src", join=true)
+        src_dir = joinpath(pkg_root, "src")
+        for file in readdir(src_dir, join=true)
             if endswith(file, ".jl")
                 lines = countlines(file)
                 # Warn if file is >2000 lines (not failing, just noting)
@@ -81,7 +89,8 @@ println()
         println("📝 Checking naming conventions...")
 
         # Check that test files follow naming convention
-        test_files = filter(f -> endswith(f, ".jl"), readdir("test"))
+        test_dir = joinpath(pkg_root, "test")
+        test_files = filter(f -> endswith(f, ".jl"), readdir(test_dir))
         for file in test_files
             # Most test files should start with "test" or end with "tests"
             # (excluding runtests.jl and scripts)

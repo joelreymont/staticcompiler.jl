@@ -133,7 +133,29 @@ end
 Check if an expression can be folded at compile time.
 """
 function is_foldable_expression(expr::Expr, ir)
-    # Check for arithmetic operations with constant operands
+    # Handle assignment expressions
+    if expr.head == :(=) && length(expr.args) >= 2
+        rhs = expr.args[2]
+        if isa(rhs, Expr)
+            return check_foldable_call(rhs, ir)
+        end
+        return is_constant_value(rhs)
+    end
+
+    # Direct call expressions
+    if expr.head == :call
+        return check_foldable_call(expr, ir)
+    end
+
+    return false
+end
+
+"""
+    check_foldable_call(expr::Expr, ir) -> Bool
+
+Check if a call expression can be folded.
+"""
+function check_foldable_call(expr::Expr, ir)
     if expr.head == :call && length(expr.args) >= 2
         func = expr.args[1]
 

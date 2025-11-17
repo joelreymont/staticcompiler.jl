@@ -2,7 +2,9 @@
 # Generates detailed test reports with timing and memory usage
 
 using Test
-using Dates
+using StaticCompiler
+import Dates
+import Dates: DateTime
 
 """
     TestReport

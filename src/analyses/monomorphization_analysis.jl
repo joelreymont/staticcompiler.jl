@@ -87,14 +87,11 @@ end
 Check if type T is abstract (including checking for abstract type parameters).
 """
 function isabstracttype(T)
-    # Core abstract type check
-    if T isa DataType
-        return isabstracttype(T)
-    elseif T isa UnionAll
-        # UnionAll types like Vector{T} where T
+    # Use Base's implementation for all types
+    # UnionAll and Union are considered abstract
+    if T isa UnionAll
         return true
     elseif T isa Union
-        # Union types
         return true
     else
         return Base.isabstracttype(T)
