@@ -698,7 +698,7 @@ function generate_executable(funcs::Union{Array,Tuple}, path=tempname(), name=fi
     cflags_vec = if cflags isa Cmd
         cflags.exec  # Extract arguments from Cmd (preserves flags)
     elseif cflags isa AbstractString
-        [cflags]  # Wrap string in vector (prevents char-by-char splatting)
+        split(cflags)  # Tokenize space-delimited flags
     else
         cflags  # Already a vector
     end
@@ -813,7 +813,7 @@ function generate_shlib(funcs::Union{Array,Tuple}, path::String=tempname(), file
     cflags_vec = if cflags isa Cmd
         cflags.exec  # Extract arguments from Cmd (preserves flags)
     elseif cflags isa AbstractString
-        [cflags]  # Wrap string in vector (prevents char-by-char splatting)
+        split(cflags)  # Tokenize space-delimited flags
     else
         cflags  # Already a vector
     end
