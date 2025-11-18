@@ -72,9 +72,14 @@ function run_analyze(args)
     end
 
     # Load module
-    mod_name = Symbol(args["module"])
+    module_name_str = args["module"]
 
-    # Try to load the module
+    # Parse nested module names (e.g., "Outer.Inner")
+    # For using, we need the top-level module
+    module_parts = split(module_name_str, '.')
+    top_module = Symbol(module_parts[1])
+
+    # Try to load the top-level module
     # First add current directory to LOAD_PATH for local modules
     cwd = pwd()
     added_to_path = !(cwd in LOAD_PATH)
@@ -82,9 +87,9 @@ function run_analyze(args)
         if added_to_path
             push!(LOAD_PATH, cwd)
         end
-        @eval using $mod_name
+        @eval using $top_module
     catch e
-        println("Error: Could not load module '$mod_name'")
+        println("Error: Could not load module '$top_module'")
         println("Make sure the module is in your LOAD_PATH or current directory")
         println("Error: $e")
         exit(1)
@@ -95,11 +100,23 @@ function run_analyze(args)
         end
     end
 
-    println("Analyzing module: $mod_name")
+    # Walk to nested module if needed
+    try
+        mod = Main
+        for part in module_parts
+            mod = getfield(mod, Symbol(part))
+        end
+    catch e
+        println("Error: Could not resolve module path '$module_name_str'")
+        println("Error: $e")
+        exit(1)
+    end
+
+    println("Analyzing module: $module_name_str")
     println()
 
     # Analyze entire module
-    analysis = analyze_module(@eval($mod_name),
+    analysis = analyze_module(mod,
                              threshold=args["threshold"],
                              verbose=args["verbose"])
 
@@ -142,9 +159,15 @@ function run_scan(args)
         exit(1)
     end
 
-    mod_name = Symbol(args["module"])
+    # Load module
+    module_name_str = args["module"]
 
-    # Try to load the module
+    # Parse nested module names (e.g., "Outer.Inner")
+    # For using, we need the top-level module
+    module_parts = split(module_name_str, '.')
+    top_module = Symbol(module_parts[1])
+
+    # Try to load the top-level module
     # First add current directory to LOAD_PATH for local modules
     cwd = pwd()
     added_to_path = !(cwd in LOAD_PATH)
@@ -152,9 +175,9 @@ function run_scan(args)
         if added_to_path
             push!(LOAD_PATH, cwd)
         end
-        @eval using $mod_name
+        @eval using $top_module
     catch e
-        println("Error: Could not load module '$mod_name'")
+        println("Error: Could not load module '$top_module'")
         println("Make sure the module is in your LOAD_PATH or current directory")
         println("Error: $e")
         exit(1)
@@ -165,11 +188,23 @@ function run_scan(args)
         end
     end
 
-    println("Scanning module: $mod_name")
+    # Walk to nested module if needed
+    try
+        mod = Main
+        for part in module_parts
+            mod = getfield(mod, Symbol(part))
+        end
+    catch e
+        println("Error: Could not resolve module path '$module_name_str'")
+        println("Error: $e")
+        exit(1)
+    end
+
+    println("Scanning module: $module_name_str")
     println()
 
     # Scan for functions
-    functions = scan_module(@eval($mod_name))
+    functions = scan_module(mod)
 
     println("Found $(length(functions)) functions:")
     for func in functions
@@ -204,9 +239,15 @@ function run_quality_gate(args)
         exit(1)
     end
 
-    mod_name = Symbol(args["module"])
+    # Load module
+    module_name_str = args["module"]
 
-    # Try to load the module
+    # Parse nested module names (e.g., "Outer.Inner")
+    # For using, we need the top-level module
+    module_parts = split(module_name_str, '.')
+    top_module = Symbol(module_parts[1])
+
+    # Try to load the top-level module
     # First add current directory to LOAD_PATH for local modules
     cwd = pwd()
     added_to_path = !(cwd in LOAD_PATH)
@@ -214,9 +255,9 @@ function run_quality_gate(args)
         if added_to_path
             push!(LOAD_PATH, cwd)
         end
-        @eval using $mod_name
+        @eval using $top_module
     catch e
-        println("Error: Could not load module '$mod_name'")
+        println("Error: Could not load module '$top_module'")
         println("Make sure the module is in your LOAD_PATH or current directory")
         println("Error: $e")
         exit(1)
@@ -227,11 +268,23 @@ function run_quality_gate(args)
         end
     end
 
-    println("Running quality gate for: $mod_name")
+    # Walk to nested module if needed
+    try
+        mod = Main
+        for part in module_parts
+            mod = getfield(mod, Symbol(part))
+        end
+    catch e
+        println("Error: Could not resolve module path '$module_name_str'")
+        println("Error: $e")
+        exit(1)
+    end
+
+    println("Running quality gate for: $module_name_str")
     println()
 
     # Analyze module
-    analysis = analyze_module(@eval($mod_name),
+    analysis = analyze_module(mod,
                              threshold=args["threshold"],
                              verbose=false)
 

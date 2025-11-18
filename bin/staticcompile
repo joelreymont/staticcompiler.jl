@@ -351,7 +351,7 @@ function compile_from_cli(args::Dict)
 
             # Compile package
             if !args["quiet"]
-                println("Compiling package: $module_name")
+                println("Compiling package: $module_name_str")
                 println("Output: $(args["path"])/$output_name")
                 println()
             end
