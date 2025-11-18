@@ -698,7 +698,7 @@ function generate_executable(funcs::Union{Array,Tuple}, path=tempname(), name=fi
     if Sys.isapple() && !llvm_to_clang
         # Apple no longer uses _start, so we can just specify a custom entry
         entry = demangle ? "_$name" : "_julia_$name"
-        run(`$cc -e $entry $cflags $obj_or_ir_path -o $exec_path`)
+        run(`$cc -e $entry $cflags... $obj_or_ir_path -o $exec_path`)
     else
         fn = demangle ? "$name" : "julia_$name"
         # Write a minimal wrapper to avoid having to specify a custom entry
@@ -725,7 +725,7 @@ function generate_executable(funcs::Union{Array,Tuple}, path=tempname(), name=fi
             end
             run(`$cclang -Wno-override-module $wrapper_path $obj_or_ir_path -o $exec_path`)
         else
-            run(`$cc $wrapper_path $cflags $obj_or_ir_path -o $exec_path`)
+            run(`$cc $wrapper_path $cflags... $obj_or_ir_path -o $exec_path`)
         end
 
         # Clean up
@@ -812,7 +812,7 @@ function generate_shlib(funcs::Union{Array,Tuple}, path::String=tempname(), file
         end
         run(`$cclang -shared -Wno-override-module $obj_or_ir_path -o $lib_path`)
     else
-        run(`$cc -shared $cflags $obj_or_ir_path -o $lib_path `)
+        run(`$cc -shared $cflags... $obj_or_ir_path -o $lib_path `)
     end
 
     path, name

@@ -76,8 +76,12 @@ function run_analyze(args)
 
     # Try to load the module
     # First add current directory to LOAD_PATH for local modules
+    cwd = pwd()
+    added_to_path = !(cwd in LOAD_PATH)
     try
-        push!(LOAD_PATH, pwd())
+        if added_to_path
+            push!(LOAD_PATH, cwd)
+        end
         @eval using $mod_name
     catch e
         println("Error: Could not load module '$mod_name'")
@@ -85,8 +89,10 @@ function run_analyze(args)
         println("Error: $e")
         exit(1)
     finally
-        # Remove the added path to avoid polluting LOAD_PATH
-        filter!(p -> p != pwd(), LOAD_PATH)
+        # Only remove the path we added
+        if added_to_path
+            filter!(p -> p != cwd, LOAD_PATH)
+        end
     end
 
     println("Analyzing module: $mod_name")
@@ -140,8 +146,12 @@ function run_scan(args)
 
     # Try to load the module
     # First add current directory to LOAD_PATH for local modules
+    cwd = pwd()
+    added_to_path = !(cwd in LOAD_PATH)
     try
-        push!(LOAD_PATH, pwd())
+        if added_to_path
+            push!(LOAD_PATH, cwd)
+        end
         @eval using $mod_name
     catch e
         println("Error: Could not load module '$mod_name'")
@@ -149,8 +159,10 @@ function run_scan(args)
         println("Error: $e")
         exit(1)
     finally
-        # Remove the added path to avoid polluting LOAD_PATH
-        filter!(p -> p != pwd(), LOAD_PATH)
+        # Only remove the path we added
+        if added_to_path
+            filter!(p -> p != cwd, LOAD_PATH)
+        end
     end
 
     println("Scanning module: $mod_name")
@@ -196,8 +208,12 @@ function run_quality_gate(args)
 
     # Try to load the module
     # First add current directory to LOAD_PATH for local modules
+    cwd = pwd()
+    added_to_path = !(cwd in LOAD_PATH)
     try
-        push!(LOAD_PATH, pwd())
+        if added_to_path
+            push!(LOAD_PATH, cwd)
+        end
         @eval using $mod_name
     catch e
         println("Error: Could not load module '$mod_name'")
@@ -205,8 +221,10 @@ function run_quality_gate(args)
         println("Error: $e")
         exit(1)
     finally
-        # Remove the added path to avoid polluting LOAD_PATH
-        filter!(p -> p != pwd(), LOAD_PATH)
+        # Only remove the path we added
+        if added_to_path
+            filter!(p -> p != cwd, LOAD_PATH)
+        end
     end
 
     println("Running quality gate for: $mod_name")

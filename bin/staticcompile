@@ -323,15 +323,19 @@ function compile_from_cli(args::Dict)
 
             # Get module name: use --module flag if provided, otherwise derive from filename
             if !isnothing(args["module"])
-                module_name = Symbol(args["module"])
+                module_name_str = args["module"]
             else
-                module_name = Symbol(splitext(basename(args["source"]))[1])
+                module_name_str = splitext(basename(args["source"]))[1]
             end
 
+            # Parse nested module names (e.g., "Outer.Inner")
             try
-                mod = getfield(Main, module_name)
+                mod = Main
+                for part in split(module_name_str, '.')
+                    mod = getfield(mod, Symbol(part))
+                end
             catch e
-                println("Error: Module '$module_name' not found after loading $(args["source"])")
+                println("Error: Module '$module_name_str' not found after loading $(args["source"])")
                 println("Hint: Use --module flag if the module name differs from the filename")
                 println("Error: $e")
                 exit(1)
