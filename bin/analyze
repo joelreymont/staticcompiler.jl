@@ -73,11 +73,21 @@ function run_analyze(args)
     # Load module
     mod_name = Symbol(args["module"])
 
+    # Try to load the module
+    try
+        @eval using $mod_name
+    catch e
+        println("Error: Could not load module '$mod_name'")
+        println("Make sure the module is in your LOAD_PATH or activate the correct project")
+        println("Error: $e")
+        exit(1)
+    end
+
     println("Analyzing module: $mod_name")
     println()
 
     # Analyze entire module
-    analysis = analyze_module(eval(mod_name),
+    analysis = analyze_module(@eval($mod_name),
                              threshold=args["threshold"],
                              verbose=args["verbose"])
 
@@ -122,11 +132,21 @@ function run_scan(args)
 
     mod_name = Symbol(args["module"])
 
+    # Try to load the module
+    try
+        @eval using $mod_name
+    catch e
+        println("Error: Could not load module '$mod_name'")
+        println("Make sure the module is in your LOAD_PATH or activate the correct project")
+        println("Error: $e")
+        exit(1)
+    end
+
     println("Scanning module: $mod_name")
     println()
 
     # Scan for functions
-    functions = scan_module(eval(mod_name))
+    functions = scan_module(@eval($mod_name))
 
     println("Found $(length(functions)) functions:")
     for func in functions
@@ -163,11 +183,21 @@ function run_quality_gate(args)
 
     mod_name = Symbol(args["module"])
 
+    # Try to load the module
+    try
+        @eval using $mod_name
+    catch e
+        println("Error: Could not load module '$mod_name'")
+        println("Make sure the module is in your LOAD_PATH or activate the correct project")
+        println("Error: $e")
+        exit(1)
+    end
+
     println("Running quality gate for: $mod_name")
     println()
 
     # Analyze module
-    analysis = analyze_module(eval(mod_name),
+    analysis = analyze_module(@eval($mod_name),
                              threshold=args["threshold"],
                              verbose=false)
 

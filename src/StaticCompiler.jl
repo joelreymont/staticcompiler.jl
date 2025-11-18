@@ -149,12 +149,13 @@ Hello, world!
 """
 function compile_executable(f::Function, types=(), path::String=pwd(), name=fix_name(f);
                             also_expose=Tuple{Function, Tuple{DataType}}[], target::StaticTarget=StaticTarget(),
+                            template::Union{Symbol,Nothing}=nothing,
                             verify::Bool=false,
                             min_score::Int=80,
                             suggest_fixes::Bool=true,
                             export_analysis::Bool=false,
                             kwargs...)
-    compile_executable(vcat([(f, types)], also_expose), path, name; target, verify, min_score, suggest_fixes, export_analysis, kwargs...)
+    compile_executable(vcat([(f, types)], also_expose), path, name; target, template, verify, min_score, suggest_fixes, export_analysis, kwargs...)
 end
 
 function compile_executable(funcs::Union{Array,Tuple}, path::String=pwd(), name=fix_name(first(first(funcs)));
@@ -163,12 +164,42 @@ function compile_executable(funcs::Union{Array,Tuple}, path::String=pwd(), name=
         cflags = ``,
         target::StaticTarget=StaticTarget(),
         llvm_to_clang = Sys.iswindows(),
+        template::Union{Symbol,Nothing}=nothing,
         verify::Bool=false,
         min_score::Int=80,
         suggest_fixes::Bool=true,
         export_analysis::Bool=false,
         kwargs...
     )
+
+    # Apply template if specified
+    # Note: Template provides defaults, but keeps any non-default user values
+    if !isnothing(template)
+        template_obj = get_template(template)
+        println("Using template: :$(template)")
+        println("  ", template_obj.description)
+        println()
+
+        # Apply template parameters only when at default values
+        template_params = template_obj.params
+
+        # Only override if at default value
+        if verify == false  # default is false
+            verify = template_params.verify
+        end
+
+        if min_score == 80  # default is 80
+            min_score = template_params.min_score
+        end
+
+        if suggest_fixes == true  # default is true
+            suggest_fixes = template_params.suggest_fixes
+        end
+
+        if export_analysis == false  # default is false
+            export_analysis = template_params.export_analysis
+        end
+    end
 
     # Pre-compilation analysis if requested
     if verify
@@ -398,19 +429,38 @@ function compile_shlib(funcs::Union{Array,Tuple}, path::String=pwd();
     )
 
     # Apply template if specified
+    # Note: Template provides defaults, but keeps any non-default user values
+    # Since we can't detect if user explicitly passed a default value vs didn't pass it,
+    # we use a heuristic: only apply template for parameters at their default values
     if !isnothing(template)
         template_obj = get_template(template)
         println("Using template: :$(template)")
         println("  ", template_obj.description)
         println()
 
-        # Apply template parameters (explicit params override template)
+        # Apply template parameters only when at default values
         template_params = template_obj.params
-        verify = get(kwargs, :verify, template_params.verify)
-        min_score = get(kwargs, :min_score, template_params.min_score)
-        suggest_fixes = get(kwargs, :suggest_fixes, template_params.suggest_fixes)
-        export_analysis = get(kwargs, :export_analysis, template_params.export_analysis)
-        generate_header = get(kwargs, :generate_header, template_params.generate_header)
+
+        # Only override if at default value (cannot distinguish explicit default from omitted)
+        if verify == false  # default is false
+            verify = template_params.verify
+        end
+
+        if min_score == 80  # default is 80
+            min_score = template_params.min_score
+        end
+
+        if suggest_fixes == true  # default is true
+            suggest_fixes = template_params.suggest_fixes
+        end
+
+        if export_analysis == false  # default is false
+            export_analysis = template_params.export_analysis
+        end
+
+        if generate_header == false  # default is false
+            generate_header = template_params.generate_header
+        end
     end
 
     # Pre-compilation analysis if requested
