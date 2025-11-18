@@ -180,17 +180,26 @@ function main()
 
             compile_params = Dict{Symbol, Any}()
 
+            # Helper to convert known symbol-valued fields
+            function convert_param(key::String, value)
+                if key == "template" && value isa String
+                    return Symbol(value)
+                else
+                    return value
+                end
+            end
+
             # Apply defaults first
             for (key, value) in defaults
                 if key ∉ ["path"]
-                    compile_params[Symbol(key)] = value
+                    compile_params[Symbol(key)] = convert_param(key, value)
                 end
             end
 
             # Override with function-specific settings
             for (key, value) in func_config
-                if key ∉ ["source", "function", "output", "path", "shlib", "types"]
-                    compile_params[Symbol(key)] = value
+                if key ∉ ["source", "function", "output", "path", "shlib", "types", "comment"]
+                    compile_params[Symbol(key)] = convert_param(key, value)
                 end
             end
 

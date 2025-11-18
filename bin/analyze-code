@@ -134,25 +134,23 @@ function main()
     println()
 
     try
-        # Run analysis
-        result = analyze_function(func, types)
+        # Run analysis using quick_check
+        report = quick_check(func, types)
 
         # Display results
         println("Analysis Results:")
         println("-" ^ 70)
         println()
 
-        println("Overall Score: $(result.score)/100")
-        println("Status: $(result.score >= args["min-score"] ? "✅ PASS" : "❌ FAIL")")
+        println("Overall Score: $(report.score)/100")
+        status_icon = report.ready_for_compilation ? "✅" : "❌"
+        println("Status: $status_icon $(report.score >= args["min-score"] ? "PASS" : "FAIL")")
         println()
 
-        if !isempty(result.issues)
+        if !isempty(report.issues)
             println("Issues Found:")
-            for (i, issue) in enumerate(result.issues)
-                println("  $i. [$(issue.category)] $(issue.message)")
-                if args["verbose"] && !isnothing(issue.suggestion)
-                    println("      Suggestion: $(issue.suggestion)")
-                end
+            for (i, issue) in enumerate(report.issues)
+                println("  $i. $issue")
             end
             println()
         else
@@ -166,38 +164,71 @@ function main()
             println()
 
             println("Escape Analysis:")
-            println("  Heap allocations: $(length(result.escapes))")
-            if !isempty(result.escapes)
-                for esc in result.escapes
-                    println("    • $esc")
+            println("  Heap allocations: $(length(report.escape_analysis.allocations))")
+            if !isempty(report.escape_analysis.allocations)
+                for alloc in report.escape_analysis.allocations
+                    println("    • Line $(alloc.line): $(alloc.description)")
                 end
             end
             println()
 
-            println("Type Stability:")
-            println("  Monomorphic: $(result.type_stable ? "✅" : "❌")")
-            println()
-
-            println("Dynamic Dispatch:")
-            println("  Call sites: $(length(result.dynamic_calls))")
-            if !isempty(result.dynamic_calls)
-                for call in result.dynamic_calls
-                    println("    • $call")
+            println("Monomorphization:")
+            println("  Has abstract types: $(report.monomorphization_analysis.has_abstract_types ? "❌" : "✅")")
+            if report.monomorphization_analysis.has_abstract_types
+                for (idx, at) in enumerate(report.monomorphization_analysis.abstract_types)
+                    println("    • $idx. $at")
                 end
             end
+            println()
+
+            println("Devirtualization:")
+            println("  Dynamic dispatch sites: $(report.devirtualization_analysis.total_dynamic_calls)")
+            if report.devirtualization_analysis.total_dynamic_calls > 0
+                for call in report.devirtualization_analysis.dynamic_calls
+                    println("    • Line $(call.line): $(call.function_name)")
+                end
+            end
+            println()
+
+            println("Lifetime Analysis:")
+            println("  Potential memory leaks: $(report.lifetime_analysis.potential_leaks)")
             println()
         end
 
         # Export if requested
         if !isnothing(args["export"])
-            export_analysis(result, args["export"])
+            # Export as JSON
+            using JSON
+            open(args["export"], "w") do io
+                JSON.print(io, Dict(
+                    "function_name" => string(report.function_name),
+                    "score" => report.score,
+                    "ready_for_compilation" => report.ready_for_compilation,
+                    "issues" => report.issues,
+                    "analyses" => Dict(
+                        "monomorphization" => Dict(
+                            "has_abstract_types" => report.monomorphization_analysis.has_abstract_types,
+                            "abstract_types" => string.(report.monomorphization_analysis.abstract_types)
+                        ),
+                        "escape" => Dict(
+                            "num_allocations" => length(report.escape_analysis.allocations)
+                        ),
+                        "devirtualization" => Dict(
+                            "dynamic_calls" => report.devirtualization_analysis.total_dynamic_calls
+                        ),
+                        "lifetime" => Dict(
+                            "potential_leaks" => report.lifetime_analysis.potential_leaks
+                        )
+                    )
+                ), 2)
+            end
             println("Analysis exported to: $(args["export"])")
             println()
         end
 
         # Summary
         println("=" ^ 70)
-        if result.score >= args["min-score"]
+        if report.score >= args["min-score"]
             println("✅ Code quality acceptable for compilation")
         else
             println("❌ Code quality below threshold ($(args["min-score"]))")
@@ -206,7 +237,7 @@ function main()
         println("=" ^ 70)
 
         # Exit with appropriate code
-        exit(result.score >= args["min-score"] ? 0 : 1)
+        exit(report.score >= args["min-score"] ? 0 : 1)
 
     catch e
         println("Error during analysis:")

@@ -25,6 +25,10 @@ function parse_commandline()
             help = "Module to analyze"
             arg_type = String
 
+        "--source", "-s"
+            help = "Source file to load module from"
+            arg_type = String
+
         "--function", "-f"
             help = "Function to analyze"
             arg_type = String
@@ -70,14 +74,30 @@ function run_analyze(args)
         exit(1)
     end
 
+    # Load module from source file if provided
+    if args["source"] !== nothing
+        if !isfile(args["source"])
+            println("Error: Source file not found: $(args["source"])")
+            exit(1)
+        end
+        include(args["source"])
+    end
+
     # Load module
     mod_name = Symbol(args["module"])
+
+    if !isdefined(Main, mod_name)
+        println("Error: Module $mod_name not found. Use --source to load it first.")
+        exit(1)
+    end
+
+    mod = getfield(Main, mod_name)
 
     println("Analyzing module: $mod_name")
     println()
 
     # Analyze entire module
-    analysis = analyze_module(eval(mod_name),
+    analysis = analyze_module(mod,
                              threshold=args["threshold"],
                              verbose=args["verbose"])
 
@@ -120,13 +140,29 @@ function run_scan(args)
         exit(1)
     end
 
+    # Load module from source file if provided
+    if args["source"] !== nothing
+        if !isfile(args["source"])
+            println("Error: Source file not found: $(args["source"])")
+            exit(1)
+        end
+        include(args["source"])
+    end
+
     mod_name = Symbol(args["module"])
+
+    if !isdefined(Main, mod_name)
+        println("Error: Module $mod_name not found. Use --source to load it first.")
+        exit(1)
+    end
+
+    mod = getfield(Main, mod_name)
 
     println("Scanning module: $mod_name")
     println()
 
     # Scan for functions
-    functions = scan_module(eval(mod_name))
+    functions = scan_module(mod)
 
     println("Found $(length(functions)) functions:")
     for func in functions
@@ -161,13 +197,29 @@ function run_quality_gate(args)
         exit(1)
     end
 
+    # Load module from source file if provided
+    if args["source"] !== nothing
+        if !isfile(args["source"])
+            println("Error: Source file not found: $(args["source"])")
+            exit(1)
+        end
+        include(args["source"])
+    end
+
     mod_name = Symbol(args["module"])
+
+    if !isdefined(Main, mod_name)
+        println("Error: Module $mod_name not found. Use --source to load it first.")
+        exit(1)
+    end
+
+    mod = getfield(Main, mod_name)
 
     println("Running quality gate for: $mod_name")
     println()
 
     # Analyze module
-    analysis = analyze_module(eval(mod_name),
+    analysis = analyze_module(mod,
                              threshold=args["threshold"],
                              verbose=false)
 

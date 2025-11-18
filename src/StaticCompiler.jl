@@ -149,12 +149,13 @@ Hello, world!
 """
 function compile_executable(f::Function, types=(), path::String=pwd(), name=fix_name(f);
                             also_expose=Tuple{Function, Tuple{DataType}}[], target::StaticTarget=StaticTarget(),
-                            verify::Bool=false,
-                            min_score::Int=80,
-                            suggest_fixes::Bool=true,
-                            export_analysis::Bool=false,
+                            template::Union{Symbol,Nothing}=nothing,
+                            verify::Union{Bool,Nothing}=nothing,
+                            min_score::Union{Int,Nothing}=nothing,
+                            suggest_fixes::Union{Bool,Nothing}=nothing,
+                            export_analysis::Union{Bool,Nothing}=nothing,
                             kwargs...)
-    compile_executable(vcat([(f, types)], also_expose), path, name; target, verify, min_score, suggest_fixes, export_analysis, kwargs...)
+    compile_executable(vcat([(f, types)], also_expose), path, name; target, template, verify, min_score, suggest_fixes, export_analysis, kwargs...)
 end
 
 function compile_executable(funcs::Union{Array,Tuple}, path::String=pwd(), name=fix_name(first(first(funcs)));
@@ -163,12 +164,35 @@ function compile_executable(funcs::Union{Array,Tuple}, path::String=pwd(), name=
         cflags = ``,
         target::StaticTarget=StaticTarget(),
         llvm_to_clang = Sys.iswindows(),
-        verify::Bool=false,
-        min_score::Int=80,
-        suggest_fixes::Bool=true,
-        export_analysis::Bool=false,
+        template::Union{Symbol,Nothing}=nothing,
+        verify::Union{Bool,Nothing}=nothing,
+        min_score::Union{Int,Nothing}=nothing,
+        suggest_fixes::Union{Bool,Nothing}=nothing,
+        export_analysis::Union{Bool,Nothing}=nothing,
         kwargs...
     )
+
+    # Apply defaults from template or use standard defaults
+    if !isnothing(template)
+        template_obj = get_template(template)
+        println("Using template: :$(template)")
+        println("  ", template_obj.description)
+        println()
+
+        template_params = template_obj.params
+
+        # Use template values for parameters that weren't explicitly provided
+        verify = isnothing(verify) ? get(template_params, :verify, false) : verify
+        min_score = isnothing(min_score) ? get(template_params, :min_score, 80) : min_score
+        suggest_fixes = isnothing(suggest_fixes) ? get(template_params, :suggest_fixes, true) : suggest_fixes
+        export_analysis = isnothing(export_analysis) ? get(template_params, :export_analysis, false) : export_analysis
+    else
+        # No template, use standard defaults for any unspecified parameters
+        verify = isnothing(verify) ? false : verify
+        min_score = isnothing(min_score) ? 80 : min_score
+        suggest_fixes = isnothing(suggest_fixes) ? true : suggest_fixes
+        export_analysis = isnothing(export_analysis) ? false : export_analysis
+    end
 
     # Pre-compilation analysis if requested
     if verify
@@ -372,11 +396,11 @@ function compile_shlib(f::Function, types=(), path::String=pwd(), name=fix_name(
         filename=name,
         target::StaticTarget=StaticTarget(),
         template::Union{Symbol,Nothing}=nothing,
-        verify::Bool=false,
-        min_score::Int=80,
-        suggest_fixes::Bool=true,
-        export_analysis::Bool=false,
-        generate_header::Bool=false,
+        verify::Union{Bool,Nothing}=nothing,
+        min_score::Union{Int,Nothing}=nothing,
+        suggest_fixes::Union{Bool,Nothing}=nothing,
+        export_analysis::Union{Bool,Nothing}=nothing,
+        generate_header::Union{Bool,Nothing}=nothing,
         kwargs...
     )
     compile_shlib(((f, types),), path; filename, target, template, verify, min_score, suggest_fixes, export_analysis, generate_header, kwargs...)
@@ -389,28 +413,36 @@ function compile_shlib(funcs::Union{Array,Tuple}, path::String=pwd();
         target::StaticTarget=StaticTarget(),
         llvm_to_clang = Sys.iswindows(),
         template::Union{Symbol,Nothing}=nothing,
-        verify::Bool=false,
-        min_score::Int=80,
-        suggest_fixes::Bool=true,
-        export_analysis::Bool=false,
-        generate_header::Bool=false,
+        verify::Union{Bool,Nothing}=nothing,
+        min_score::Union{Int,Nothing}=nothing,
+        suggest_fixes::Union{Bool,Nothing}=nothing,
+        export_analysis::Union{Bool,Nothing}=nothing,
+        generate_header::Union{Bool,Nothing}=nothing,
         kwargs...
     )
 
-    # Apply template if specified
+    # Apply defaults from template or use standard defaults
     if !isnothing(template)
         template_obj = get_template(template)
         println("Using template: :$(template)")
         println("  ", template_obj.description)
         println()
 
-        # Apply template parameters (explicit params override template)
         template_params = template_obj.params
-        verify = get(kwargs, :verify, template_params.verify)
-        min_score = get(kwargs, :min_score, template_params.min_score)
-        suggest_fixes = get(kwargs, :suggest_fixes, template_params.suggest_fixes)
-        export_analysis = get(kwargs, :export_analysis, template_params.export_analysis)
-        generate_header = get(kwargs, :generate_header, template_params.generate_header)
+
+        # Use template values for parameters that weren't explicitly provided
+        verify = isnothing(verify) ? get(template_params, :verify, false) : verify
+        min_score = isnothing(min_score) ? get(template_params, :min_score, 80) : min_score
+        suggest_fixes = isnothing(suggest_fixes) ? get(template_params, :suggest_fixes, true) : suggest_fixes
+        export_analysis = isnothing(export_analysis) ? get(template_params, :export_analysis, false) : export_analysis
+        generate_header = isnothing(generate_header) ? get(template_params, :generate_header, false) : generate_header
+    else
+        # No template, use standard defaults for any unspecified parameters
+        verify = isnothing(verify) ? false : verify
+        min_score = isnothing(min_score) ? 80 : min_score
+        suggest_fixes = isnothing(suggest_fixes) ? true : suggest_fixes
+        export_analysis = isnothing(export_analysis) ? false : export_analysis
+        generate_header = isnothing(generate_header) ? false : generate_header
     end
 
     # Pre-compilation analysis if requested
