@@ -5,7 +5,8 @@
 
 using ArgParse
 using Pkg
-Pkg.activate(".")
+# Activate StaticCompiler's project, not the caller's CWD
+Pkg.activate(joinpath(@__DIR__, ".."))
 using StaticCompiler
 
 function parse_commandline()
@@ -74,13 +75,18 @@ function run_analyze(args)
     mod_name = Symbol(args["module"])
 
     # Try to load the module
+    # First add current directory to LOAD_PATH for local modules
     try
+        push!(LOAD_PATH, pwd())
         @eval using $mod_name
     catch e
         println("Error: Could not load module '$mod_name'")
-        println("Make sure the module is in your LOAD_PATH or activate the correct project")
+        println("Make sure the module is in your LOAD_PATH or current directory")
         println("Error: $e")
         exit(1)
+    finally
+        # Remove the added path to avoid polluting LOAD_PATH
+        filter!(p -> p != pwd(), LOAD_PATH)
     end
 
     println("Analyzing module: $mod_name")
@@ -133,13 +139,18 @@ function run_scan(args)
     mod_name = Symbol(args["module"])
 
     # Try to load the module
+    # First add current directory to LOAD_PATH for local modules
     try
+        push!(LOAD_PATH, pwd())
         @eval using $mod_name
     catch e
         println("Error: Could not load module '$mod_name'")
-        println("Make sure the module is in your LOAD_PATH or activate the correct project")
+        println("Make sure the module is in your LOAD_PATH or current directory")
         println("Error: $e")
         exit(1)
+    finally
+        # Remove the added path to avoid polluting LOAD_PATH
+        filter!(p -> p != pwd(), LOAD_PATH)
     end
 
     println("Scanning module: $mod_name")
@@ -184,13 +195,18 @@ function run_quality_gate(args)
     mod_name = Symbol(args["module"])
 
     # Try to load the module
+    # First add current directory to LOAD_PATH for local modules
     try
+        push!(LOAD_PATH, pwd())
         @eval using $mod_name
     catch e
         println("Error: Could not load module '$mod_name'")
-        println("Make sure the module is in your LOAD_PATH or activate the correct project")
+        println("Make sure the module is in your LOAD_PATH or current directory")
         println("Error: $e")
         exit(1)
+    finally
+        # Remove the added path to avoid polluting LOAD_PATH
+        filter!(p -> p != pwd(), LOAD_PATH)
     end
 
     println("Running quality gate for: $mod_name")

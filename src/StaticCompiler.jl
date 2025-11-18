@@ -150,10 +150,10 @@ Hello, world!
 function compile_executable(f::Function, types=(), path::String=pwd(), name=fix_name(f);
                             also_expose=Tuple{Function, Tuple{DataType}}[], target::StaticTarget=StaticTarget(),
                             template::Union{Symbol,Nothing}=nothing,
-                            verify::Bool=false,
-                            min_score::Int=80,
-                            suggest_fixes::Bool=true,
-                            export_analysis::Bool=false,
+                            verify::Union{Bool,Nothing}=nothing,
+                            min_score::Union{Int,Nothing}=nothing,
+                            suggest_fixes::Union{Bool,Nothing}=nothing,
+                            export_analysis::Union{Bool,Nothing}=nothing,
                             kwargs...)
     compile_executable(vcat([(f, types)], also_expose), path, name; target, template, verify, min_score, suggest_fixes, export_analysis, kwargs...)
 end
@@ -165,40 +165,55 @@ function compile_executable(funcs::Union{Array,Tuple}, path::String=pwd(), name=
         target::StaticTarget=StaticTarget(),
         llvm_to_clang = Sys.iswindows(),
         template::Union{Symbol,Nothing}=nothing,
-        verify::Bool=false,
-        min_score::Int=80,
-        suggest_fixes::Bool=true,
-        export_analysis::Bool=false,
+        verify::Union{Bool,Nothing}=nothing,
+        min_score::Union{Int,Nothing}=nothing,
+        suggest_fixes::Union{Bool,Nothing}=nothing,
+        export_analysis::Union{Bool,Nothing}=nothing,
         kwargs...
     )
 
-    # Apply template if specified
-    # Note: Template provides defaults, but keeps any non-default user values
+    # Apply template if specified, then apply final defaults
     if !isnothing(template)
         template_obj = get_template(template)
         println("Using template: :$(template)")
         println("  ", template_obj.description)
         println()
 
-        # Apply template parameters only when at default values
         template_params = template_obj.params
 
-        # Only override if at default value
-        if verify == false  # default is false
+        # Apply template values only for parameters not explicitly set by user
+        if isnothing(verify)
             verify = template_params.verify
         end
 
-        if min_score == 80  # default is 80
+        if isnothing(min_score)
             min_score = template_params.min_score
         end
 
-        if suggest_fixes == true  # default is true
+        if isnothing(suggest_fixes)
             suggest_fixes = template_params.suggest_fixes
         end
 
-        if export_analysis == false  # default is false
+        if isnothing(export_analysis)
             export_analysis = template_params.export_analysis
         end
+    end
+
+    # Apply final defaults for any still-nothing values
+    if isnothing(verify)
+        verify = false
+    end
+
+    if isnothing(min_score)
+        min_score = 80
+    end
+
+    if isnothing(suggest_fixes)
+        suggest_fixes = true
+    end
+
+    if isnothing(export_analysis)
+        export_analysis = false
     end
 
     # Pre-compilation analysis if requested
@@ -403,11 +418,11 @@ function compile_shlib(f::Function, types=(), path::String=pwd(), name=fix_name(
         filename=name,
         target::StaticTarget=StaticTarget(),
         template::Union{Symbol,Nothing}=nothing,
-        verify::Bool=false,
-        min_score::Int=80,
-        suggest_fixes::Bool=true,
-        export_analysis::Bool=false,
-        generate_header::Bool=false,
+        verify::Union{Bool,Nothing}=nothing,
+        min_score::Union{Int,Nothing}=nothing,
+        suggest_fixes::Union{Bool,Nothing}=nothing,
+        export_analysis::Union{Bool,Nothing}=nothing,
+        generate_header::Union{Bool,Nothing}=nothing,
         kwargs...
     )
     compile_shlib(((f, types),), path; filename, target, template, verify, min_score, suggest_fixes, export_analysis, generate_header, kwargs...)
@@ -420,47 +435,65 @@ function compile_shlib(funcs::Union{Array,Tuple}, path::String=pwd();
         target::StaticTarget=StaticTarget(),
         llvm_to_clang = Sys.iswindows(),
         template::Union{Symbol,Nothing}=nothing,
-        verify::Bool=false,
-        min_score::Int=80,
-        suggest_fixes::Bool=true,
-        export_analysis::Bool=false,
-        generate_header::Bool=false,
+        verify::Union{Bool,Nothing}=nothing,
+        min_score::Union{Int,Nothing}=nothing,
+        suggest_fixes::Union{Bool,Nothing}=nothing,
+        export_analysis::Union{Bool,Nothing}=nothing,
+        generate_header::Union{Bool,Nothing}=nothing,
         kwargs...
     )
 
-    # Apply template if specified
-    # Note: Template provides defaults, but keeps any non-default user values
-    # Since we can't detect if user explicitly passed a default value vs didn't pass it,
-    # we use a heuristic: only apply template for parameters at their default values
+    # Apply template if specified, then apply final defaults
     if !isnothing(template)
         template_obj = get_template(template)
         println("Using template: :$(template)")
         println("  ", template_obj.description)
         println()
 
-        # Apply template parameters only when at default values
         template_params = template_obj.params
 
-        # Only override if at default value (cannot distinguish explicit default from omitted)
-        if verify == false  # default is false
+        # Apply template values only for parameters not explicitly set by user
+        # (nothing means user didn't pass the parameter)
+        if isnothing(verify)
             verify = template_params.verify
         end
 
-        if min_score == 80  # default is 80
+        if isnothing(min_score)
             min_score = template_params.min_score
         end
 
-        if suggest_fixes == true  # default is true
+        if isnothing(suggest_fixes)
             suggest_fixes = template_params.suggest_fixes
         end
 
-        if export_analysis == false  # default is false
+        if isnothing(export_analysis)
             export_analysis = template_params.export_analysis
         end
 
-        if generate_header == false  # default is false
+        if isnothing(generate_header)
             generate_header = template_params.generate_header
         end
+    end
+
+    # Apply final defaults for any still-nothing values
+    if isnothing(verify)
+        verify = false
+    end
+
+    if isnothing(min_score)
+        min_score = 80
+    end
+
+    if isnothing(suggest_fixes)
+        suggest_fixes = true
+    end
+
+    if isnothing(export_analysis)
+        export_analysis = false
+    end
+
+    if isnothing(generate_header)
+        generate_header = false
     end
 
     # Pre-compilation analysis if requested
