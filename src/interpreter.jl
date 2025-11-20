@@ -3,7 +3,11 @@
 using Core.Compiler:
     AbstractInterpreter, InferenceResult, InferenceParams, InferenceState, MethodInstance, OptimizationParams, WorldView, get_world_counter
 using GPUCompiler:
-    @safe_debug, AbstractCompilerParams, CodeCache, CompilerJob, methodinstance
+    @safe_debug, AbstractCompilerParams, CompilerJob, methodinstance
+
+# Julia 1.12+ compatibility: CodeCache renamed to InternalCodeCache
+const CodeCache = isdefined(Core.Compiler, :CodeCache) ? Core.Compiler.CodeCache : Core.Compiler.InternalCodeCache
+
 using CodeInfoTools
 using CodeInfoTools: resolve
 
@@ -86,14 +90,18 @@ function Core.Compiler.InferenceState(result::InferenceResult, cache::Symbol, in
     mi = result.linfo
     src = custom_pass!(interp, result, mi, src)
     src === nothing && return nothing
-    Core.Compiler.validate_code_in_debug_mode(result.linfo, src, "lowered")
+    # validate_code_in_debug_mode removed in Julia 1.12+
+    if isdefined(Core.Compiler, :validate_code_in_debug_mode)
+        Core.Compiler.validate_code_in_debug_mode(result.linfo, src, "lowered")
+    end
     return InferenceState(result, src, cache, interp)
 end
 
 Core.Compiler.may_optimize(interp::StaticInterpreter) = true
 Core.Compiler.may_compress(interp::StaticInterpreter) = true
 Core.Compiler.may_discard_trees(interp::StaticInterpreter) = true
-Core.Compiler.verbose_stmt_info(interp::StaticInterpreter) = false
+# verbose_stmt_info removed in Julia 1.12+
+isdefined(Core.Compiler, :verbose_stmt_info) && (Core.Compiler.verbose_stmt_info(interp::StaticInterpreter) = false)
 
 
 if isdefined(Base.Experimental, Symbol("@overlay"))
@@ -129,6 +137,11 @@ end
 
 function StaticCompilerParams(; opt = false,
         optlevel = Base.JLOptions().opt_level,
-        cache = CodeCache())
+        cache = if isdefined(Core.Compiler, :CodeCache)
+            Core.Compiler.CodeCache()
+        else
+            # Julia 1.12+: InternalCodeCache requires an owner
+            Core.Compiler.InternalCodeCache(nothing)
+        end)
     return StaticCompilerParams(opt, optlevel, cache)
 end
