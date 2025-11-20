@@ -901,7 +901,10 @@ function static_llvm_module(funcs::Union{Array,Tuple}; demangle=true, target::St
         end
     end
     LLVM.ModulePassManager() do pass_manager #remove duplicate functions
-        LLVM.merge_functions!(pass_manager)
+        # merge_functions! removed in LLVM.jl for Julia 1.12+
+        @static if VERSION < v"1.12.0-DEV"
+            LLVM.merge_functions!(pass_manager)
+        end
         LLVM.run!(pass_manager, mod)
     end
     return mod
@@ -994,7 +997,13 @@ function generate_obj(funcs::Union{Array,Tuple}, path::String = tempname(), file
       obj_path = joinpath(path, "$filenamebase.o")
       obj = GPUCompiler.JuliaContext() do ctx
         fakejob, _ = static_job(f, tt; target, kwargs...)
-        obj, _ = GPUCompiler.emit_asm(fakejob, mod; strip=strip_asm, validate=false, format=LLVM.API.LLVMObjectFile)
+        # Julia 1.12+: emit_asm changed from keyword args to positional args
+        # strip and validate options were removed in Julia 1.12
+        obj, _ = @static if VERSION >= v"1.12.0-DEV"
+          GPUCompiler.emit_asm(fakejob, mod, LLVM.API.LLVMObjectFile)
+        else
+          GPUCompiler.emit_asm(fakejob, mod; strip=strip_asm, validate=false, format=LLVM.API.LLVMObjectFile)
+        end
         obj
       end
       open(obj_path, "w") do io

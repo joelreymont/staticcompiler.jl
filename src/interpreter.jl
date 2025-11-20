@@ -51,6 +51,12 @@ Core.Compiler.get_world_counter(interp::StaticInterpreter) = interp.world
 Core.Compiler.get_inference_cache(interp::StaticInterpreter) = interp.local_cache
 Core.Compiler.code_cache(interp::StaticInterpreter) = WorldView(interp.global_cache, interp.world)
 
+# Julia 1.12+ required methods
+@static if VERSION >= v"1.12.0-DEV"
+    Core.Compiler.get_inference_world(interp::StaticInterpreter) = interp.world
+    Core.Compiler.cache_owner(interp::StaticInterpreter) = nothing
+end
+
 # No need to do any locking since we're not putting our results into the runtime cache
 Core.Compiler.lock_mi_inference(interp::StaticInterpreter, mi::MethodInstance) = nothing
 Core.Compiler.unlock_mi_inference(interp::StaticInterpreter, mi::MethodInstance) = nothing
