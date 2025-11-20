@@ -10,7 +10,7 @@ fib(n) = n <= 1 ? n : fib(n - 1) + fib(n - 2) # This needs to be defined globall
     # fib(n) = n <= 1 ? n : fib(n - 1) + fib(n - 2)
 
     #Compile dylib
-    name = repr(fib)
+    name = string(nameof(fib))  # Use nameof instead of repr to get just "fib" instead of "Main.fib"
     filepath = compile_shlib(fib, (Int,), workdir, name, demangle=true)
     @test occursin("fib.$(Libdl.dlext)", filepath)
     # Open dylib manually
