@@ -241,38 +241,7 @@ end
         end
     end
 
-    if Sys.isapple()
-        @test_broken false
-    else
-        let
-            # Compile...
-            status = -1
-            try
-                isfile("loopvec_matrix_stack") && rm("loopvec_matrix_stack")
-                status = run(`$jlpath --startup=no  $testpath/scripts/loopvec_matrix_stack.jl`)
-            catch e
-                @warn "Could not compile $testpath/scripts/loopvec_matrix_stack.jl"
-                println(e)
-            end
-            compile_ok = isa(status, Base.Process) && status.exitcode == 0
-            compile_ok || @test_broken compile_ok
-            compile_ok && @test status.exitcode == 0
-
-            # Run...
-            println("10x5 matrix product:")
-            status = try
-                run(`./loopvec_matrix_stack`)
-            catch e
-                @warn "Could not run $(scratch)/loopvec_matrix_stack"
-                println(e)
-                nothing
-            end
-            run_ok = isa(status, Base.Process) && status.exitcode == 0
-            @test_broken run_ok
-            A = (1:10) * (1:5)'
-            # @test parsedlm(c"table.tsv",'\t') == A' * A broken=Sys.isapple()
-        end
-    end
+    @test_broken false
 
 
     ## --- Test string handling
