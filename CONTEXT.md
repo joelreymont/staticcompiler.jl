@@ -1,10 +1,10 @@
 # Session Context (2025-11-22)
 
-- Branch `claude/static-compiler-01MzDXCnFRXaJXWpJ3o2Fnvk`, git HEAD d44cab3.
+- Branch `claude/static-compiler-01MzDXCnFRXaJXWpJ3o2Fnvk`, git HEAD cfee2ed.
 - Julia 1.12.1 available locally; working tree dirty with ongoing changes around runtime linking, method table selection, GPUCompiler 1.8 compat, and integration test adjustments.
 - Untracked build artifacts present (loopvec_matrix, times_table, tmp.bc, etc.)—avoid committing.
 - Active instructions: keep this CONTEXT.md updated after major steps, commit frequently with author Joel Reymont <18791+joelreymont@users.noreply.github.com>, create a plan and execute it, no emojis.
-- Next actions: review existing uncommitted changes to understand goals, run targeted tests to identify failures, then refine runtime-linked build support and update docs/tests as needed.
+- Next actions: investigate remaining loopvec_matrix_stack SIGBUS under runtime-linked execution, reduce wrapper argv type warnings if feasible, and decide whether to commit AGENTS.md or leave untracked alongside build artifacts.
 
 ## Updates
 - Reviewed uncommitted diffs: StaticTarget now toggles a runtime-linked mode with Julia runtime link flags, method table selection, and optional runtime overlays; generate_executable/shlib now emit wrappers with optional jl_init/atexit; static_llvm_module links libraries and strips verifier errors; escape analysis now resolves SSA callees; pointer_warning adds verifier cleanup; Project.toml allows GPUCompiler 1.8; integration scripts/tests set runtime=true and mark fragile cases as broken on failure.
