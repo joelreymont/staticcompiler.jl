@@ -5,8 +5,8 @@ using Core.Compiler:
 using GPUCompiler:
     @safe_debug, AbstractCompilerParams, CompilerJob, methodinstance
 
-# Julia 1.12+ compatibility: CodeCache renamed to InternalCodeCache
-const CodeCache = isdefined(Core.Compiler, :CodeCache) ? Core.Compiler.CodeCache : Core.Compiler.InternalCodeCache
+# Julia 1.12+ compatibility: prefer the newer InternalCodeCache when available
+const CodeCache = isdefined(Core.Compiler, :InternalCodeCache) ? Core.Compiler.InternalCodeCache : Core.Compiler.CodeCache
 
 using CodeInfoTools
 using CodeInfoTools: resolve
@@ -54,7 +54,7 @@ Core.Compiler.code_cache(interp::StaticInterpreter) = WorldView(interp.global_ca
 # Julia 1.12+ required methods
 @static if VERSION >= v"1.12.0-DEV"
     Core.Compiler.get_inference_world(interp::StaticInterpreter) = interp.world
-    Core.Compiler.cache_owner(interp::StaticInterpreter) = nothing
+    Core.Compiler.cache_owner(interp::StaticInterpreter) = interp.global_cache.owner
 end
 
 # No need to do any locking since we're not putting our results into the runtime cache
@@ -143,11 +143,18 @@ end
 
 function StaticCompilerParams(; opt = false,
         optlevel = Base.JLOptions().opt_level,
-        cache = if isdefined(Core.Compiler, :CodeCache)
-            Core.Compiler.CodeCache()
+        cache::Union{CodeCache, Nothing} = nothing,
+        cache_owner::Any = nothing)
+    cache = if cache === nothing
+        if CodeCache === Core.Compiler.InternalCodeCache
+            owner = cache_owner === nothing ? Ref{UInt}(rand(UInt)) : cache_owner
+            Core.Compiler.InternalCodeCache(owner)
         else
-            # Julia 1.12+: InternalCodeCache requires an owner
-            Core.Compiler.InternalCodeCache(nothing)
-        end)
+            CodeCache()
+        end
+    else
+        cache
+    end
+
     return StaticCompilerParams(opt, optlevel, cache)
 end
