@@ -63,12 +63,11 @@ function loopvec_matrix_stack()
     fclose(logfp)
 end
 
-# Attempt to compile
+# Attempt to compile (device-style, without linking the Julia runtime)
 target = StaticTarget()
-StaticCompiler.set_runtime!(target, true)
 path = compile_executable(loopvec_matrix_stack, (), "./"; target=target)
 
-# Emit LLVM for debugging the verifier failure.
+# Emit LLVM for debugging
 mod = StaticCompiler.static_llvm_module(loopvec_matrix_stack, Tuple{}; target=target)
 open("loopvec_stack.ll", "w") do io
     print(io, string(mod))
