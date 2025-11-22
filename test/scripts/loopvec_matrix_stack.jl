@@ -2,8 +2,11 @@ using StaticCompiler
 using StaticTools
 using LoopVectorization
 
+const STACK_ROWS = 10
+const STACK_COLS = 5
+
 @inline function mul!(C::StackArray, A::StackArray, B::StackArray)
-    @turbo for n ∈ indices((C,B), 2), m ∈ indices((C,A), 1)
+    @turbo for n ∈ axes(C, 2), m ∈ axes(C, 1)
         Cmn = zero(eltype(C))
         for k ∈ indices((A,B), (2,1))
             Cmn += A[m,k] * B[k,n]
@@ -14,11 +17,8 @@ using LoopVectorization
 end
 
 function loopvec_matrix_stack()
-    rows = 10
-    cols = 5
-
     # LHS
-    A = StackArray{Float64}(undef, rows, cols)
+    A = StackArray{Float64,2,STACK_ROWS*STACK_COLS,(STACK_ROWS, STACK_COLS)}(undef)
     @turbo for i ∈ axes(A, 1)
         for j ∈ axes(A, 2)
            A[i,j] = i*j
@@ -26,7 +26,7 @@ function loopvec_matrix_stack()
     end
 
     # RHS
-    B = StackArray{Float64}(undef, cols, rows)
+    B = StackArray{Float64,2,STACK_COLS*STACK_ROWS,(STACK_COLS, STACK_ROWS)}(undef)
     @turbo for i ∈ axes(B, 1)
         for j ∈ axes(B, 2)
            B[i,j] = i*j
@@ -34,7 +34,7 @@ function loopvec_matrix_stack()
     end
 
     # # Matrix multiplication
-    C = StackArray{Float64}(undef, cols, cols)
+    C = StackArray{Float64,2,STACK_COLS*STACK_COLS,(STACK_COLS, STACK_COLS)}(undef)
     mul!(C, B, A)
 
     # Print to stdout
